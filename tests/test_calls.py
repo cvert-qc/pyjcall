@@ -5,6 +5,7 @@ from pyjcall import JustCallClient
 from pyjcall.utils.exceptions import JustCallException
 import pytest
 from aioresponses import aioresponses
+from unittest.mock import AsyncMock, patch
 
 @pytest.fixture
 def mock_api():
@@ -13,17 +14,23 @@ def mock_api():
 
 @pytest.fixture
 async def client():
-    return JustCallClient(api_key="test_key", api_secret="test_secret")
+    """Create a test client with mocked credentials"""
+    async with JustCallClient("test_key", "test_secret") as client:
+        yield client
 
-async def test_calls():
+@pytest.mark.asyncio
+async def test_calls(client):
     """Test all calls endpoints in sequence"""
-    api_key = os.getenv("JUSTCALL_API_KEY")
-    api_secret = os.getenv("JUSTCALL_API_SECRET")
-    if not api_key or not api_secret:
-        raise ValueError("Please set JUSTCALL_API_KEY and JUSTCALL_API_SECRET environment variables")
-
     try:
-        async with JustCallClient(api_key=api_key, api_secret=api_secret) as client:
+        # Mock responses for each call
+        with patch.object(client, '_make_request', new_callable=AsyncMock) as mock_request:
+            # Mock list calls response
+            mock_request.return_value = {
+                "data": [
+                    {"id": 123, "direction": "Incoming"}
+                ]
+            }
+            
             # 1. List calls to get an ID
             print("\nFetching calls...")
             calls = await client.Calls.list(

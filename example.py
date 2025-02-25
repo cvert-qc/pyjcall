@@ -164,6 +164,77 @@ async def test_users(client):
     else:
         print("No users found")
 
+async def test_contacts(client):
+    """Test Contacts API endpoints"""
+    print("\n=== CONTACTS API ===")
+    
+    # Create a new contact
+    print("\nCreating new contact...")
+    try:
+        new_contact = await client.Contacts.create(
+            firstname="John",
+            phone="+15147290123",
+            lastname="Doe",
+            email="john.doe@example.com",
+            company="Example Corp",
+            notes="Created via PyJCall SDK",
+            acrossteam=True
+        )
+        print("Contact created successfully")
+        #print contact id
+        print(f"Contact ID: {new_contact['id']}")
+        
+        # If creation successful, try to update it
+        if new_contact:
+            print("\nUpdating newly created contact...")
+            try:
+                updated = await client.Contacts.update(
+                    id=new_contact['id'],  # Assuming the response includes the contact ID
+                    firstname="John",
+                    phone="+15147290123",
+                    notes="Updated via PyJCall SDK",
+                    other_phones={"Home": "+0987654321"}
+                )
+                print("Contact updated successfully")
+            except Exception as e:
+                print(f"Failed to update contact: {e}")
+    except Exception as e:
+        print(f"Failed to create contact: {e}")
+    
+    # List contacts
+    print("\nListing contacts...")
+    contacts = await client.Contacts.list(per_page="20")
+    print(f"Retrieved {len(contacts.get('contacts', []))} contacts")
+    
+    # Query contacts
+    print("\nQuerying contacts...")
+    try:
+        # Example: search by first name
+        query_results = await client.Contacts.query(firstname="John")
+        print(f"Found {len(query_results.get('contacts', []))} contacts matching query")
+        
+        # Example: iterate through all contacts matching query
+        print("\nIterating through query results...")
+        count = 0
+        async for contact in client.Contacts.iter_query(firstname="John", max_items=50):
+            count += 1
+            if count % 10 == 0:
+                print(f"Processed {count} matching contacts...")
+        print(f"Total matching contacts processed: {count}")
+        
+    except ValueError as e:
+        print(f"Query error: {e}")
+    
+    # Test bulk iteration
+    print("\nTesting bulk iteration of all contacts...")
+    contact_count = 0
+    async for contact in client.Contacts.iter_all(max_items=100):
+        contact_count += 1
+        if contact_count % 20 == 0:
+            print(f"Processed {contact_count} contacts...")
+    
+    print(f"\nTotal contacts processed: {contact_count}")
+
 async def test_bulk_iterations(client):
     """Test bulk iteration capabilities"""
     print("\n=== BULK ITERATIONS ===")
@@ -227,6 +298,7 @@ async def main():
         await test_messages(client)
         await test_phone_numbers(client)
         await test_users(client)
+        await test_contacts(client)
         await test_bulk_iterations(client)
     
     print("\nExample script completed!")

@@ -6,6 +6,7 @@ from .utils.rate_limiter import RateLimiter
 from .resources.messages import Messages
 from .resources.phone_numbers import PhoneNumbers
 from .resources.users import Users
+from .resources.contacts import Contacts
 
 class JustCallClient:
     def __init__(self, api_key: str, api_secret: str):
@@ -26,6 +27,7 @@ class JustCallClient:
         self._messages = Messages(self)
         self._phone_numbers = PhoneNumbers(self)
         self._users = Users(self)
+        self._contacts = Contacts(self)
 
     async def __aenter__(self):
         """Create aiohttp session when entering context manager."""
@@ -113,6 +115,7 @@ class JustCallClient:
         method: str,
         endpoint: str,
         params: Dict = None,
+        json: Dict = None,
         page_key: str = "page",
         per_page_key: str = "per_page",
         items_key: str = "data",
@@ -123,33 +126,54 @@ class JustCallClient:
         Args:
             method: HTTP method to use
             endpoint: API endpoint
-            params: Query parameters
-            page_key: Key used for page number in params
-            per_page_key: Key used for items per page in params
+            params: Query parameters (for GET requests)
+            json: JSON body (for POST requests)
+            page_key: Key used for page number in request
+            per_page_key: Key used for items per page in request
             items_key: Key containing items in response
             max_items: Maximum number of items to return (None for all)
             
         Yields:
             Individual items from paginated responses
         """
-        params = params or {}
         items_returned = 0
-        page = params.get(page_key, 0)
+        page = 1  # Start with page 1 for consistency
         
         while True:
-            params[page_key] = page
-            response = await self._make_request(method, endpoint, params=params)
+            # Update page number in the appropriate request data
+            if method.upper() == "GET" and params is not None:
+                params[page_key] = str(page)
+            elif json is not None:
+                json[page_key] = str(page)
             
-            items = response.get(items_key, [])
+            # Make the request
+            response = await self._make_request(
+                method=method,
+                endpoint=endpoint,
+                params=params,
+                json=json
+            )
+            
+            # Get items from response, handling different response structures
+            items = []
+            if isinstance(response, dict):
+                items = response.get(items_key, [])
+                if not items and items_key in response:
+                    # Handle case where items_key exists but is None/empty
+                    break
+                elif not items and 'contacts' in response:
+                    # Special case for contacts API
+                    items = response.get('contacts', [])
+            
             if not items:
                 break
-                
+            
             for item in items:
                 if max_items and items_returned >= max_items:
                     return
                 yield item
                 items_returned += 1
-                
+            
             page += 1
 
     # Resource properties
@@ -168,3 +192,7 @@ class JustCallClient:
     @property
     def Users(self) -> Users:
         return self._users
+
+    @property
+    def Contacts(self) -> Contacts:
+        return self._contacts
