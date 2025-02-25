@@ -1,4 +1,4 @@
-from typing import Dict, Any, Union
+from typing import Dict, Any, Union, AsyncIterator
 import aiohttp
 from .resources.calls import Calls
 from .utils.exceptions import JustCallException
@@ -107,6 +107,50 @@ class JustCallClient:
                 status_code=500,
                 message=f"Request failed: {str(e)}. URL: {url}, Params: {params}"
             )
+
+    async def _paginate(
+        self,
+        method: str,
+        endpoint: str,
+        params: Dict = None,
+        page_key: str = "page",
+        per_page_key: str = "per_page",
+        items_key: str = "data",
+        max_items: int = None
+    ) -> AsyncIterator[Dict[str, Any]]:
+        """Helper method to handle pagination across all resources.
+        
+        Args:
+            method: HTTP method to use
+            endpoint: API endpoint
+            params: Query parameters
+            page_key: Key used for page number in params
+            per_page_key: Key used for items per page in params
+            items_key: Key containing items in response
+            max_items: Maximum number of items to return (None for all)
+            
+        Yields:
+            Individual items from paginated responses
+        """
+        params = params or {}
+        items_returned = 0
+        page = params.get(page_key, 0)
+        
+        while True:
+            params[page_key] = page
+            response = await self._make_request(method, endpoint, params=params)
+            
+            items = response.get(items_key, [])
+            if not items:
+                break
+                
+            for item in items:
+                if max_items and items_returned >= max_items:
+                    return
+                yield item
+                items_returned += 1
+                
+            page += 1
 
     # Resource properties
     @property

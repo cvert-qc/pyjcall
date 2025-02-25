@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, AsyncIterator
 from ..models.messages import ListMessagesParams, SendMessageParams, CheckReplyParams, SendNewMessageParams
 
 class Messages:
@@ -165,3 +165,46 @@ class Messages:
             endpoint="/v2.1/texts/new",
             json=params.model_dump(exclude_none=True)
         )
+
+    async def iter_all(
+        self,
+        from_datetime: Optional[str] = None,
+        to_datetime: Optional[str] = None,
+        contact_number: Optional[str] = None,
+        justcall_number: Optional[str] = None,
+        sms_direction: Optional[str] = None,
+        sms_content: Optional[str] = None,
+        sort: str = "id",
+        order: str = "desc",
+        max_items: Optional[int] = None
+    ) -> AsyncIterator[Dict[str, Any]]:
+        """
+        Iterate through all messages matching the filter criteria.
+        Automatically handles pagination.
+        
+        Args:
+            Same as list() method, except page and per_page are handled internally
+            max_items: Maximum number of items to return (None for all)
+            
+        Yields:
+            Dict[str, Any]: Individual message records
+        """
+        params = ListMessagesParams(
+            from_datetime=from_datetime,
+            to_datetime=to_datetime,
+            contact_number=contact_number,
+            justcall_number=justcall_number,
+            sms_direction=sms_direction,
+            sms_content=sms_content,
+            sort=sort,
+            order=order,
+            per_page=100  # Use maximum allowed per_page for efficiency
+        )
+
+        async for item in self.client._paginate(
+            method="GET",
+            endpoint="/v2.1/texts",
+            params=params.model_dump(exclude_none=True),
+            max_items=max_items
+        ):
+            yield item

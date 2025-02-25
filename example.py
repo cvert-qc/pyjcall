@@ -164,6 +164,48 @@ async def test_users(client):
     else:
         print("No users found")
 
+async def test_bulk_iterations(client):
+    """Test bulk iteration capabilities"""
+    print("\n=== BULK ITERATIONS ===")
+    
+    # Iterate through all calls from last month
+    print("\nIterating through all calls from last month...")
+    from datetime import datetime, timedelta
+    
+    # Calculate date range for last month
+    today = datetime.now()
+    last_month = today - timedelta(days=30)
+    from_date = last_month.strftime("%Y-%m-%d")
+    to_date = today.strftime("%Y-%m-%d")
+    
+    call_count = 0
+    async for call in client.Calls.iter_all(
+        from_datetime=from_date,
+        to_datetime=to_date,
+        max_items=1000  # Optional: limit total items
+    ):
+        call_count += 1
+        if call_count % 100 == 0:  # Progress update every 100 calls
+            print(f"Processed {call_count} calls...")
+    
+    print(f"\nTotal calls processed: {call_count}")
+    
+    # Iterate through all messages
+    print("\nIterating through all messages from last week...")
+    last_week = today - timedelta(days=7)
+    from_date = last_week.strftime("%Y-%m-%d")
+    
+    message_count = 0
+    async for message in client.Messages.iter_all(
+        from_datetime=from_date,
+        to_datetime=to_date
+    ):
+        message_count += 1
+        if message_count % 50 == 0:  # Progress update every 50 messages
+            print(f"Processed {message_count} messages...")
+    
+    print(f"\nTotal messages processed: {message_count}")
+
 async def main():
     """Main function to run all examples"""
     # Get API credentials from environment
@@ -185,6 +227,7 @@ async def main():
         await test_messages(client)
         await test_phone_numbers(client)
         await test_users(client)
+        await test_bulk_iterations(client)
     
     print("\nExample script completed!")
 

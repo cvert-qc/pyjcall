@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, AsyncIterator, List
 from ..models.calls import ListCallsParams, UpdateCallParams
 
 class Calls:
@@ -17,7 +17,7 @@ class Calls:
         ivr_digit: Optional[int] = None,
         call_direction: Optional[str] = None,
         call_type: Optional[str] = None,
-        call_traits: Optional[list[str]] = None,
+        call_traits: Optional[List[str]] = None,
         page: Optional[int] = None,
         per_page: Optional[int] = 20,
         sort: str = "id",
@@ -169,3 +169,56 @@ class Calls:
             endpoint=f"/v2.1/calls/{call_id}/recording/download",
             expect_json=False  # We expect binary data, not JSON
         )
+
+    async def iter_all(
+        self,
+        fetch_queue_data: bool = False,
+        fetch_ai_data: bool = False,
+        from_datetime: Optional[str] = None,
+        to_datetime: Optional[str] = None,
+        contact_number: Optional[str] = None,
+        justcall_number: Optional[str] = None,
+        agent_id: Optional[int] = None,
+        ivr_digit: Optional[int] = None,
+        call_direction: Optional[str] = None,
+        call_type: Optional[str] = None,
+        call_traits: Optional[List[str]] = None,
+        sort: str = "id",
+        order: str = "desc",
+        max_items: Optional[int] = None
+    ) -> AsyncIterator[Dict[str, Any]]:
+        """
+        Iterate through all calls matching the filter criteria.
+        Automatically handles pagination.
+        
+        Args:
+            Same as list() method, except page and per_page are handled internally
+            max_items: Maximum number of items to return (None for all)
+            
+        Yields:
+            Dict[str, Any]: Individual call records
+        """
+        params = ListCallsParams(
+            fetch_queue_data=fetch_queue_data,
+            fetch_ai_data=fetch_ai_data,
+            from_datetime=from_datetime,
+            to_datetime=to_datetime,
+            contact_number=contact_number,
+            justcall_number=justcall_number,
+            agent_id=agent_id,
+            ivr_digit=ivr_digit,
+            call_direction=call_direction,
+            call_type=call_type,
+            call_traits=call_traits,
+            sort=sort,
+            order=order,
+            per_page=100  # Use maximum allowed per_page for efficiency
+        )
+
+        async for item in self.client._paginate(
+            method="GET",
+            endpoint="/v2.1/calls",
+            params=params.model_dump(exclude_none=True),
+            max_items=max_items
+        ):
+            yield item
