@@ -25,11 +25,11 @@ class Contacts:
             page=page,
             per_page=per_page
         )
-            
+        
         return await self.client._make_request(
-            method="POST",  # Changed from GET to POST
-            endpoint="/v1/contacts/list",  # Updated endpoint path
-            json=params.model_dump(exclude_none=True)  # Changed from params to json
+            method="POST",
+            endpoint="/v1/contacts/list",
+            json=params.model_dump(exclude_none=True)
         )
 
     async def iter_all(
@@ -56,7 +56,7 @@ class Contacts:
             endpoint="/v1/contacts/list",
             json=params.model_dump(exclude_none=True),
             page_key="page",
-            items_key="contacts",
+            items_key="data",
             max_items=max_items,
             start_page=1  # Ensure pagination starts at page 1
         ):

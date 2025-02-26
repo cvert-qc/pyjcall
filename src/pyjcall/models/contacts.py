@@ -1,11 +1,27 @@
 from typing import Optional, Dict
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from enum import Enum
 
 class ListContactsParams(BaseModel):
     """Parameters for listing contacts"""
-    page: Optional[str] = "1"
-    per_page: Optional[str] = "50"
+    page: str = Field(
+        default="1",
+        description="Page number (v1 API uses string)"
+    )
+    per_page: str = Field(
+        default="50",
+        description="Results per page (max: 100)"
+    )
+
+    @field_validator('per_page')
+    def validate_per_page(cls, v):
+        try:
+            val = int(v)
+            if not 1 <= val <= 100:
+                raise ValueError("per_page must be between 1 and 100")
+        except ValueError:
+            raise ValueError("per_page must be a valid number")
+        return v
 
 class QueryContactsParams(BaseModel):
     """Parameters for querying contacts"""

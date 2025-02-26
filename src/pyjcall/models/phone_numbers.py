@@ -31,15 +31,15 @@ class ListPhoneNumbersParams(BaseModel):
         None,
         description="Filter by capabilities (call, sms, mms)"
     )
-    per_page: Optional[int] = Field(
+    page: Optional[int] = Field(
+        default=0,
+        description="Page number (v2 API uses integer)"
+    )
+    per_page: int = Field(
         default=30,
         ge=1,
         le=100,
         description="Phone numbers per page (max: 100)"
-    )
-    page: Optional[int] = Field(
-        None,
-        description="Page number"
     )
     order: Optional[str] = Field(
         None,

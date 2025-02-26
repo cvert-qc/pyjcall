@@ -32,10 +32,10 @@ class ListMessagesParams(BaseModel):
         description="Keywords in SMS content"
     )
     page: Optional[int] = Field(
-        None,
-        description="Page number"
+        default=0,
+        description="Page number (v2 API uses integer)"
     )
-    per_page: Optional[int] = Field(
+    per_page: int = Field(
         default=20,
         ge=1,
         le=100,

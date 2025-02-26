@@ -34,7 +34,8 @@ class JustCallClient:
         self.session = aiohttp.ClientSession(
             headers={
                 "Authorization": f"{self.api_key}:{self.api_secret}",
-                "Accept": "application/json"
+                "Accept": "application/json",
+                "Content-Type": "application/json"
             }
         )
         return self
@@ -72,7 +73,8 @@ class JustCallClient:
             self.session = aiohttp.ClientSession(
                 headers={
                     "Authorization": f"{self.api_key}:{self.api_secret}",
-                    "Accept": "application/json"
+                    "Accept": "application/json",
+                    "Content-Type": "application/json"
                 }
             )
 

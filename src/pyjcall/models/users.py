@@ -16,10 +16,10 @@ class ListUsersParams(BaseModel):
         description="Filter agents by role"
     )
     page: Optional[int] = Field(
-        0,
-        description="Page number"
+        default=0,
+        description="Page number (v2 API uses integer)"
     )
-    per_page: Optional[int] = Field(
+    per_page: int = Field(
         default=50,
         ge=1,
         le=100,
