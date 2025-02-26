@@ -87,27 +87,30 @@ class JustCallClient:
 
         try:
             url = f"{self.base_url}{endpoint}"
-            print(f"Making request to: {url}")  # Debug info
-            if params:
-                print(f"With params: {params}")  # Debug info
+            print(f"\nMaking request to: {url}")
+            print(f"Method: {method}")
+            print(f"JSON body: {json}")
             
             async with self.session.request(method, url, params=params, json=json) as response:
                 if response.status >= 400:
                     error_data = await response.json()
                     raise JustCallException(
                         status_code=response.status,
-                        message=f"API Error: {error_data.get('message', 'Unknown error')}. URL: {url}, Params: {params}"
+                        message=f"API Error: {error_data.get('message', 'Unknown error')}"
                     )
                 
                 if expect_json:
-                    return await response.json()
+                    data = await response.json()
+                    print(f"Response status: {response.status}")
+                    print(f"Response data: {data}")
+                    return data
                 else:
                     return await response.read()
                 
         except aiohttp.ClientError as e:
             raise JustCallException(
                 status_code=500,
-                message=f"Request failed: {str(e)}. URL: {url}, Params: {params}"
+                message=f"Request failed: {str(e)}"
             )
 
     async def _paginate(
@@ -119,7 +122,8 @@ class JustCallClient:
         page_key: str = "page",
         per_page_key: str = "per_page",
         items_key: str = "data",
-        max_items: int = None
+        max_items: int = None,
+        start_page: int = 0
     ) -> AsyncIterator[Dict[str, Any]]:
         """Helper method to handle pagination across all resources.
         
@@ -132,12 +136,13 @@ class JustCallClient:
             per_page_key: Key used for items per page in request
             items_key: Key containing items in response
             max_items: Maximum number of items to return (None for all)
+            start_page: Starting page number (0 for v2 API, 1 for v1 API)
             
         Yields:
             Individual items from paginated responses
         """
         items_returned = 0
-        page = 1  # Start with page 1 for consistency
+        page = start_page  # Use the provided start page
         
         while True:
             # Update page number in the appropriate request data

@@ -13,14 +13,14 @@ class Contacts:
 
     async def list(
         self,
-        page: Optional[str] = "1",
+        page: Optional[str] = "1",  # Default to page 1 for v1 API
         per_page: Optional[str] = "50"
     ) -> Dict[str, Any]:
         """
         List contacts with pagination.
         
         Args:
-            page: The page number you want to read
+            page: The page number you want to read (starts at 1)
             per_page: The number of results per page (max: 100)
             
         Returns:
@@ -31,11 +31,18 @@ class Contacts:
             per_page=per_page
         )
 
-        return await self.client._make_request(
+        # Debug print
+        print(f"\nMaking contacts list request with params: {params.model_dump(exclude_none=True)}")
+        
+        response = await self.client._make_request(
             method="POST",
             endpoint="/v1/contacts/list",
             json=params.model_dump(exclude_none=True)
         )
+        
+        # Debug print
+        print(f"Got response with {len(response.get('contacts', []))} contacts")
+        return response
 
     async def iter_all(
         self,
@@ -52,6 +59,7 @@ class Contacts:
             Dict[str, Any]: Individual contact records
         """
         params = ListContactsParams(
+            page="1",  # Explicitly set page 1 for v1 API
             per_page="100"  # Use maximum allowed per_page for efficiency
         )
 
@@ -60,10 +68,11 @@ class Contacts:
             endpoint="/v1/contacts/list",
             json=params.model_dump(exclude_none=True),
             page_key="page",
-            items_key="contacts",  # Assuming the response has a 'contacts' key for the items
-            max_items=max_items
+            items_key="contacts",
+            max_items=max_items,
+            start_page=1  # Ensure pagination starts at page 1
         ):
-            yield item 
+            yield item
 
     async def query(
         self,
@@ -159,7 +168,8 @@ class Contacts:
             json=params.model_dump(exclude_none=True),
             page_key="page",
             items_key="contacts",
-            max_items=max_items
+            max_items=max_items,
+            start_page=1  # Specify v1 API starts at page 1
         ):
             yield item 
 

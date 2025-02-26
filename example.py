@@ -165,45 +165,12 @@ async def test_users(client):
         print("No users found")
 
 async def test_contacts(client):
-    """Test Contacts API endpoints"""
+    """Test Contacts API endpoints (read-only)"""
     print("\n=== CONTACTS API ===")
-    
-    # Create a new contact
-    print("\nCreating new contact...")
-    try:
-        new_contact = await client.Contacts.create(
-            firstname="John",
-            phone="+15147290123",
-            lastname="Doe",
-            email="john.doe@example.com",
-            company="Example Corp",
-            notes="Created via PyJCall SDK",
-            acrossteam=True
-        )
-        print("Contact created successfully")
-        #print contact id
-        print(f"Contact ID: {new_contact['id']}")
-        
-        # If creation successful, try to update it
-        if new_contact:
-            print("\nUpdating newly created contact...")
-            try:
-                updated = await client.Contacts.update(
-                    id=new_contact['id'],  # Assuming the response includes the contact ID
-                    firstname="John",
-                    phone="+15147290123",
-                    notes="Updated via PyJCall SDK",
-                    other_phones={"Home": "+0987654321"}
-                )
-                print("Contact updated successfully")
-            except Exception as e:
-                print(f"Failed to update contact: {e}")
-    except Exception as e:
-        print(f"Failed to create contact: {e}")
     
     # List contacts
     print("\nListing contacts...")
-    contacts = await client.Contacts.list(per_page="20")
+    contacts = await client.Contacts.list(page="1", per_page="20")
     print(f"Retrieved {len(contacts.get('contacts', []))} contacts")
     
     # Query contacts
@@ -213,7 +180,7 @@ async def test_contacts(client):
         query_results = await client.Contacts.query(firstname="John")
         print(f"Found {len(query_results.get('contacts', []))} contacts matching query")
         
-        # Example: iterate through all contacts matching query
+        # Example: iterate through query results
         print("\nIterating through query results...")
         count = 0
         async for contact in client.Contacts.iter_query(firstname="John", max_items=50):
@@ -239,12 +206,11 @@ async def test_bulk_iterations(client):
     """Test bulk iteration capabilities"""
     print("\n=== BULK ITERATIONS ===")
     
-    # Iterate through all calls from last month
-    print("\nIterating through all calls from last month...")
     from datetime import datetime, timedelta
-    
-    # Calculate date range for last month
     today = datetime.now()
+    
+    # Test Calls iteration
+    print("\nIterating through all calls from last month...")
     last_month = today - timedelta(days=30)
     from_date = last_month.strftime("%Y-%m-%d")
     to_date = today.strftime("%Y-%m-%d")
@@ -253,15 +219,14 @@ async def test_bulk_iterations(client):
     async for call in client.Calls.iter_all(
         from_datetime=from_date,
         to_datetime=to_date,
-        max_items=1000  # Optional: limit total items
+        max_items=1000
     ):
         call_count += 1
-        if call_count % 100 == 0:  # Progress update every 100 calls
+        if call_count % 100 == 0:
             print(f"Processed {call_count} calls...")
-    
     print(f"\nTotal calls processed: {call_count}")
     
-    # Iterate through all messages
+    # Test Messages iteration
     print("\nIterating through all messages from last week...")
     last_week = today - timedelta(days=7)
     from_date = last_week.strftime("%Y-%m-%d")
@@ -272,10 +237,57 @@ async def test_bulk_iterations(client):
         to_datetime=to_date
     ):
         message_count += 1
-        if message_count % 50 == 0:  # Progress update every 50 messages
+        if message_count % 50 == 0:
             print(f"Processed {message_count} messages...")
-    
     print(f"\nTotal messages processed: {message_count}")
+
+    # Test Users iteration
+    print("\nIterating through all users...")
+    user_count = 0
+    async for user in client.Users.iter_all():
+        user_count += 1
+        if user_count % 20 == 0:
+            print(f"Processed {user_count} users...")
+    print(f"\nTotal users processed: {user_count}")
+
+    # Test Phone Numbers iteration
+    print("\nIterating through all phone numbers...")
+    number_count = 0
+    async for number in client.PhoneNumbers.iter_all():
+        number_count += 1
+        if number_count % 20 == 0:
+            print(f"Processed {number_count} phone numbers...")
+    print(f"\nTotal phone numbers processed: {number_count}")
+
+    # Test Contacts iteration (all contacts)
+    print("\nIterating through all contacts...")
+    contact_count = 0
+    async for contact in client.Contacts.iter_all():
+        contact_count += 1
+        if contact_count % 50 == 0:
+            print(f"Processed {contact_count} contacts...")
+    print(f"\nTotal contacts processed: {contact_count}")
+
+    # Test Contacts query iteration
+    print("\nIterating through contacts matching query...")
+    query_count = 0
+    async for contact in client.Contacts.iter_query(
+        firstname="John",
+        company="Example Corp"
+    ):
+        query_count += 1
+        if query_count % 20 == 0:
+            print(f"Processed {query_count} matching contacts...")
+    print(f"\nTotal matching contacts processed: {query_count}")
+
+    # Print summary
+    print("\n=== BULK ITERATION SUMMARY ===")
+    print(f"Calls processed: {call_count}")
+    print(f"Messages processed: {message_count}")
+    print(f"Users processed: {user_count}")
+    print(f"Phone numbers processed: {number_count}")
+    print(f"All contacts processed: {contact_count}")
+    print(f"Matching contacts processed: {query_count}")
 
 async def main():
     """Main function to run all examples"""

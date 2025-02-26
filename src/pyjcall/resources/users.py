@@ -7,7 +7,7 @@ class Users:
 
     async def list(
         self,
-        available: Optional[bool] = False,
+        available: Optional[bool] = None,
         group_id: Optional[int] = None,
         role: Optional[str] = None,
         page: Optional[int] = 0,
@@ -60,7 +60,7 @@ class Users:
 
     async def iter_all(
         self,
-        available: Optional[bool] = False,
+        available: Optional[bool] = None,
         group_id: Optional[int] = None,
         role: Optional[str] = None,
         order: Optional[str] = "desc",
