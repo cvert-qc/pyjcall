@@ -1,27 +1,36 @@
-from typing import Dict, Any, Optional, AsyncIterator
+from typing import Dict, Any, Optional, AsyncIterator, Union
 from ..models.contacts import (
     ListContactsParams, 
     QueryContactsParams, 
     UpdateContactParams,
     CreateContactParams,
-    OtherPhone
+    OtherPhone,
+    DeleteContactParams,
+    ContactActionType,
+    ContactActionOperation,
+    ContactActionParams
 )
 
 class Contacts:
     def __init__(self, client):
         self.client = client
 
-    async def list(self, params: Optional[ListContactsParams] = None) -> Dict:
+    async def list(
+        self,
+        page: Optional[str] = "1",
+        per_page: Optional[str] = "50"
+    ) -> Dict[str, Any]:
         """List contacts with optional filtering parameters"""
-        if params is None:
-            params = ListContactsParams()
-            
-        response = await self.client._request(
-            'GET',
-            '/contacts/list',
-            params=params.model_dump(exclude_none=True)
+        params = ListContactsParams(
+            page=page,
+            per_page=per_page
         )
-        return response
+            
+        return await self.client._make_request(
+            method="POST",  # Changed from GET to POST
+            endpoint="/v1/contacts/list",  # Updated endpoint path
+            json=params.model_dump(exclude_none=True)  # Changed from params to json
+        )
 
     async def iter_all(
         self,
@@ -254,3 +263,65 @@ class Contacts:
             json=params.model_dump(exclude_none=True)
         ) 
         return res
+
+    async def delete(self, id: int) -> Dict[str, Any]:
+        """
+        Delete a contact.
+        
+        Args:
+            id: Unique id of the contact to delete
+            
+        Returns:
+            Dict[str, Any]: Response indicating success/failure
+            
+        Raises:
+            JustCallException: If deletion fails or contact doesn't exist
+        """
+        params = DeleteContactParams(id=id)
+
+        return await self.client._make_request(
+            method="POST",
+            endpoint="/v1/contacts/delete",
+            json=params.model_dump(exclude_none=True)
+        )
+
+    async def action(
+        self,
+        number: str,
+        type: Union[str, ContactActionType],
+        action: Union[str, ContactActionOperation],
+        acrossteam: Optional[str] = "1"
+    ) -> Dict[str, Any]:
+        """
+        Perform actions on a contact number (add/remove to/from DND, blacklist, etc).
+        
+        Args:
+            number: Phone number to act on
+            type: Type of action:
+                "0" - Blacklist number
+                "1" - Add to DND list
+                "2" - Add to DNM list
+            action: Action to perform:
+                "0" - Remove from list
+                "1" - Add to list
+            acrossteam: Apply across team ("1") or individual ("0"), defaults to "1"
+            
+        Returns:
+            Dict[str, Any]: Response indicating success/failure
+            
+        Raises:
+            JustCallException: If the action fails
+            ValueError: If parameters are invalid
+        """
+        params = ContactActionParams(
+            number=number,
+            type=type,
+            action=action,
+            acrossteam=acrossteam
+        )
+
+        return await self.client._make_request(
+            method="POST",
+            endpoint="/v1/contacts/action",
+            json=params.model_dump(exclude_none=True)
+        )

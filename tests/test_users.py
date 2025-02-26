@@ -1,12 +1,25 @@
 import pytest
+from unittest.mock import AsyncMock, patch
 from pyjcall import JustCallClient
 from pyjcall.utils.exceptions import JustCallException
+from aioresponses import aioresponses
+
+@pytest.fixture
+def mock_api():
+    with aioresponses() as m:
+        yield m
+
+@pytest.fixture
+async def client():
+    """Create a test client with mocked credentials"""
+    async with JustCallClient("test_key", "test_secret") as client:
+        yield client
 
 @pytest.mark.asyncio
 async def test_list_users(client, mock_api):
     """Test listing users/agents"""
     mock_api.get(
-        "https://api.justcall.io/v2.1/users?available=0&order=desc&page=0&per_page=50",
+        "https://api.justcall.io/v2.1/users?order=desc&page=0&per_page=50",
         payload={
             "data": [
                 {"id": 123, "name": "John Doe", "email": "john@example.com"},

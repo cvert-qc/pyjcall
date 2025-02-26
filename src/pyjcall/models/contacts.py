@@ -1,5 +1,6 @@
 from typing import Optional, Dict
 from pydantic import BaseModel, Field
+from enum import Enum
 
 class ListContactsParams(BaseModel):
     """Parameters for listing contacts"""
@@ -57,6 +58,34 @@ class CreateContactParams(BaseModel):
     notes: Optional[str] = Field(default=None, description="Additional notes")
     acrossteam: Optional[int] = Field(default=None, description="Create for all team members (1) or owner only (0)")
     agentid: Optional[int] = Field(default=None, description="Specific agent ID to create contact for")
+
+    class Config:
+        validate_assignment = True
+
+class DeleteContactParams(BaseModel):
+    """Parameters for deleting a contact"""
+    id: int = Field(..., description="Unique id of the contact")
+
+    class Config:
+        validate_assignment = True
+
+class ContactActionType(str, Enum):
+    """Type of contact action"""
+    BLACKLIST = "0"
+    DND = "1"
+    DNM = "2"
+
+class ContactActionOperation(str, Enum):
+    """Operation to perform"""
+    REMOVE = "0"
+    ADD = "1"
+
+class ContactActionParams(BaseModel):
+    """Parameters for contact actions (DND, blacklist, etc)"""
+    number: str = Field(..., description="Phone number to act on")
+    type: ContactActionType = Field(..., description="Type of action (blacklist, DND, DNM)")
+    action: ContactActionOperation = Field(..., description="Action to perform (add/remove)")
+    acrossteam: Optional[str] = Field(default="1", description="Apply across team (1) or individual (0)")
 
     class Config:
         validate_assignment = True 
