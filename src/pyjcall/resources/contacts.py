@@ -11,37 +11,16 @@ class Contacts:
     def __init__(self, client):
         self.client = client
 
-    async def list(
-        self,
-        page: Optional[str] = "1",  # Default to page 1 for v1 API
-        per_page: Optional[str] = "50"
-    ) -> Dict[str, Any]:
-        """
-        List contacts with pagination.
-        
-        Args:
-            page: The page number you want to read (starts at 1)
-            per_page: The number of results per page (max: 100)
+    async def list(self, params: Optional[ListContactsParams] = None) -> Dict:
+        """List contacts with optional filtering parameters"""
+        if params is None:
+            params = ListContactsParams()
             
-        Returns:
-            Dict[str, Any]: Paginated list of contacts
-        """
-        params = ListContactsParams(
-            page=page,
-            per_page=per_page
+        response = await self.client._request(
+            'GET',
+            '/contacts/list',
+            params=params.model_dump(exclude_none=True)
         )
-
-        # Debug print
-        print(f"\nMaking contacts list request with params: {params.model_dump(exclude_none=True)}")
-        
-        response = await self.client._make_request(
-            method="POST",
-            endpoint="/v1/contacts/list",
-            json=params.model_dump(exclude_none=True)
-        )
-        
-        # Debug print
-        print(f"Got response with {len(response.get('contacts', []))} contacts")
         return response
 
     async def iter_all(

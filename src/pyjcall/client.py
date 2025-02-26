@@ -1,4 +1,4 @@
-from typing import Dict, Any, Union, AsyncIterator
+from typing import Dict, Any, Union, AsyncIterator, Optional
 import aiohttp
 from .resources.calls import Calls
 from .utils.exceptions import JustCallException
@@ -87,9 +87,6 @@ class JustCallClient:
 
         try:
             url = f"{self.base_url}{endpoint}"
-            print(f"\nMaking request to: {url}")
-            print(f"Method: {method}")
-            print(f"JSON body: {json}")
             
             async with self.session.request(method, url, params=params, json=json) as response:
                 if response.status >= 400:
@@ -101,8 +98,6 @@ class JustCallClient:
                 
                 if expect_json:
                     data = await response.json()
-                    print(f"Response status: {response.status}")
-                    print(f"Response data: {data}")
                     return data
                 else:
                     return await response.read()
