@@ -155,7 +155,7 @@ class Contacts:
             endpoint="/v1/contacts/query",
             json=params.model_dump(exclude_none=True),
             page_key="page",
-            items_key="contacts",
+            items_key="data",
             max_items=max_items,
             start_page=1  # Specify v1 API starts at page 1
         ):

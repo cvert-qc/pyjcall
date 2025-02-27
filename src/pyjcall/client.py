@@ -155,7 +155,7 @@ class JustCallClient:
                 params=params,
                 json=json
             )
-            
+
             # Get items from response, handling different response structures
             items = []
             if isinstance(response, dict):
@@ -163,9 +163,6 @@ class JustCallClient:
                 if not items and items_key in response:
                     # Handle case where items_key exists but is None/empty
                     break
-                elif not items and 'contacts' in response:
-                    # Special case for contacts API
-                    items = response.get('contacts', [])
             
             if not items:
                 break
