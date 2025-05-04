@@ -1,5 +1,7 @@
 from typing import Dict, Any, Optional, AsyncIterator
+from datetime import datetime
 from ..models.messages import ListMessagesParams, SendMessageParams, CheckReplyParams, SendNewMessageParams
+from ..utils.datetime import to_api_datetime, convert_dict_datetimes
 
 class Messages:
     def __init__(self, client):
@@ -7,8 +9,8 @@ class Messages:
 
     async def list(
         self,
-        from_datetime: Optional[str] = None,
-        to_datetime: Optional[str] = None,
+        from_datetime: Optional[datetime] = None,
+        to_datetime: Optional[datetime] = None,
         last_sms_id_fetched: Optional[int] = None,
         contact_number: Optional[str] = None,
         justcall_number: Optional[str] = None,
@@ -23,8 +25,8 @@ class Messages:
         List SMS messages with optional filtering parameters.
         
         Args:
-            from_datetime: Start datetime (yyyy-mm-dd hh:mm:ss or yyyy-mm-dd)
-            to_datetime: End datetime (yyyy-mm-dd hh:mm:ss or yyyy-mm-dd)
+            from_datetime: Start datetime
+            to_datetime: End datetime
             last_sms_id_fetched: ID of last SMS fetched in previous query
             contact_number: Contact number in E.164 format
             justcall_number: JustCall number in E.164 format
@@ -52,11 +54,14 @@ class Messages:
             order=order
         )
 
-        return await self.client._make_request(
+        response = await self.client._make_request(
             method="GET",
             endpoint="/v2.1/texts",
             params=params.model_dump(exclude_none=True)
         )
+        
+        # Convert datetime strings in response to Python datetime objects
+        return convert_dict_datetimes(response)
 
     async def send(
         self,
@@ -168,8 +173,8 @@ class Messages:
 
     async def iter_all(
         self,
-        from_datetime: Optional[str] = None,
-        to_datetime: Optional[str] = None,
+        from_datetime: Optional[datetime] = None,
+        to_datetime: Optional[datetime] = None,
         contact_number: Optional[str] = None,
         justcall_number: Optional[str] = None,
         sms_direction: Optional[str] = None,
@@ -201,10 +206,16 @@ class Messages:
             per_page=100  # Use maximum allowed per_page for efficiency
         )
 
+        json_data = params.model_dump(exclude_none=True)
+
         async for item in self.client._paginate(
             method="GET",
             endpoint="/v2.1/texts",
-            params=params.model_dump(exclude_none=True),
+            params=json_data,
+            page_key="page",
+            per_page_key="per_page",
+            items_key="data",
             max_items=max_items
         ):
-            yield item
+            # Convert datetime strings in each item to Python datetime objects
+            yield convert_dict_datetimes(item)

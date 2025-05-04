@@ -1,15 +1,16 @@
 from typing import Optional
+from datetime import datetime
 from pydantic import BaseModel, Field
 
 class ListMessagesParams(BaseModel):
     """Parameters for listing SMS messages"""
-    from_datetime: Optional[str] = Field(
+    from_datetime: Optional[datetime] = Field(
         None,
-        description="Start datetime (yyyy-mm-dd hh:mm:ss or yyyy-mm-dd)"
+        description="Start datetime"
     )
-    to_datetime: Optional[str] = Field(
+    to_datetime: Optional[datetime] = Field(
         None,
-        description="End datetime (yyyy-mm-dd hh:mm:ss or yyyy-mm-dd)"
+        description="End datetime"
     )
     last_sms_id_fetched: Optional[int] = Field(
         None,

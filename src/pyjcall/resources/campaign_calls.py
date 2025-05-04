@@ -1,5 +1,7 @@
 from typing import Optional, Dict, Any, AsyncIterator
+from datetime import date
 from ..models.campaign_calls import ListCampaignCallsParams
+from ..utils.datetime import to_api_date, convert_dict_datetimes
 
 class CampaignCalls:
     def __init__(self, client):
@@ -8,8 +10,8 @@ class CampaignCalls:
     async def list(
         self,
         campaign_id: Optional[str] = None,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
         order: Optional[str] = None,
         page: Optional[str] = None,
         per_page: Optional[str] = None
@@ -19,8 +21,8 @@ class CampaignCalls:
         
         Args:
             campaign_id (str, optional): Campaign ID from which to fetch calls
-            start_date (str, optional): Start date from which to fetch calls (format: YYYY-MM-DD)
-            end_date (str, optional): End date from which to fetch calls (format: YYYY-MM-DD)
+            start_date (date, optional): Start date from which to fetch calls
+            end_date (date, optional): End date from which to fetch calls
             order (str, optional): Order of calls: 0 for ascending, 1 for descending
             page (str, optional): Page number to retrieve
             per_page (str, optional): Number of results per page (default: 100, max: 100)
@@ -40,17 +42,20 @@ class CampaignCalls:
             per_page=per_page
         )
 
-        return await self.client._make_request(
+        response = await self.client._make_request(
             method="POST",
             endpoint="/v1/autodialer/calls/list",
             json=params.model_dump(exclude_none=True)
         )
+        
+        # Convert date strings in response to Python date objects
+        return convert_dict_datetimes(response)
 
     async def iter_all(
         self,
         campaign_id: Optional[str] = None,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
         order: Optional[str] = None,
         max_items: Optional[int] = None
     ) -> AsyncIterator[Dict[str, Any]]:
@@ -60,8 +65,8 @@ class CampaignCalls:
         
         Args:
             campaign_id (str, optional): Campaign ID from which to fetch calls
-            start_date (str, optional): Start date from which to fetch calls (format: YYYY-MM-DD)
-            end_date (str, optional): End date from which to fetch calls (format: YYYY-MM-DD)
+            start_date (date, optional): Start date from which to fetch calls
+            end_date (date, optional): End date from which to fetch calls
             order (str, optional): Order of calls: 0 for ascending, 1 for descending
             max_items (int, optional): Maximum number of items to return (None for all)
             
@@ -89,4 +94,5 @@ class CampaignCalls:
             max_items=max_items,
             start_page=1  # v1 API starts at page 1
         ):
-            yield item
+            # Convert date strings in each item to Python date objects
+            yield convert_dict_datetimes(item)

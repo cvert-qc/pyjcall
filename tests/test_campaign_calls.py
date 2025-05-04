@@ -1,4 +1,5 @@
 import pytest
+from datetime import datetime, date
 from pyjcall import JustCallClient
 from pyjcall.utils.exceptions import JustCallException
 
@@ -64,6 +65,7 @@ async def test_list_campaign_calls_with_date_range(client, mock_api):
         }
     )
     
+    # Convert date objects to strings in the format 'YYYY-MM-DD'
     response = await client.CampaignCalls.list(
         campaign_id="1749984",
         start_date="2020-12-14",
