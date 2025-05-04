@@ -1,4 +1,5 @@
 from typing import Optional, List
+from datetime import datetime
 from pydantic import BaseModel, Field, constr, field_validator
 from enum import Enum
 from decimal import Decimal
@@ -20,13 +21,13 @@ class ListCallsParams(BaseModel):
         description="Fetch coaching data by Justcall AI",
         serialization_alias="fetch_ai_data",
     )
-    from_datetime: Optional[str] = Field(
+    from_datetime: Optional[datetime] = Field(
         None,
-        description="Start datetime (yyyy-mm-dd hh:mm:ss or yyyy-mm-dd)"
+        description="Start datetime"
     )
-    to_datetime: Optional[str] = Field(
+    to_datetime: Optional[datetime] = Field(
         None,
-        description="End datetime (yyyy-mm-dd hh:mm:ss or yyyy-mm-dd)"
+        description="End datetime"
     )
     contact_number: Optional[str] = Field(
         None,

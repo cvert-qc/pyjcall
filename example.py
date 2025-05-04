@@ -206,14 +206,14 @@ async def test_bulk_iterations(client):
     """Test bulk iteration capabilities"""
     print("\n=== BULK ITERATIONS ===")
     
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, date
     today = datetime.now()
     
     # Test Calls iteration
     print("\nIterating through all calls from last month...")
     last_month = today - timedelta(days=30)
-    from_date = last_month.strftime("%Y-%m-%d")
-    to_date = today.strftime("%Y-%m-%d")
+    from_date = last_month
+    to_date = today
     
     call_count = 0
     async for call in client.Calls.iter_all(
@@ -229,7 +229,8 @@ async def test_bulk_iterations(client):
     # Test Messages iteration
     print("\nIterating through all messages from last week...")
     last_week = today - timedelta(days=7)
-    from_date = last_week.strftime("%Y-%m-%d")
+    # Use datetime objects directly instead of string formatting
+    from_date = last_week
     
     message_count = 0
     async for message in client.Messages.iter_all(
@@ -406,11 +407,12 @@ async def test_campaign_calls(client):
         
         try:
             # Get calls for a specific campaign
-            from datetime import datetime, timedelta
+            from datetime import datetime, timedelta, date
             today = datetime.now()
             one_month_ago = today - timedelta(days=30)
-            start_date = one_month_ago.strftime("%Y-%m-%d")
-            end_date = today.strftime("%Y-%m-%d")
+            # Use date objects directly instead of string formatting
+            start_date = one_month_ago.date()
+            end_date = today.date()
             
             calls = await client.CampaignCalls.list(
                 campaign_id=str(campaign_id),
@@ -449,11 +451,12 @@ async def test_campaign_calls(client):
     # List calls from all campaigns
     print("\nListing calls from all campaigns in the last 7 days...")
     try:
-        from datetime import datetime, timedelta
+        from datetime import datetime, timedelta, date
         today = datetime.now()
         one_week_ago = today - timedelta(days=7)
-        start_date = one_week_ago.strftime("%Y-%m-%d")
-        end_date = today.strftime("%Y-%m-%d")
+        # Use date objects directly instead of string formatting
+        start_date = one_week_ago.date()
+        end_date = today.date()
         
         all_calls = await client.CampaignCalls.list(
             start_date=start_date,

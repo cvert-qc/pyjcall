@@ -1,5 +1,7 @@
 from typing import Optional, Dict, Any, AsyncIterator, List
+from datetime import datetime
 from ..models.calls import ListCallsParams, UpdateCallParams
+from ..utils.datetime import to_api_datetime, convert_dict_datetimes
 
 class Calls:
     def __init__(self, client):
@@ -9,8 +11,8 @@ class Calls:
         self,
         fetch_queue_data: bool = False,
         fetch_ai_data: bool = False,
-        from_datetime: Optional[str] = None,
-        to_datetime: Optional[str] = None,
+        from_datetime: Optional[datetime] = None,
+        to_datetime: Optional[datetime] = None,
         contact_number: Optional[str] = None,
         justcall_number: Optional[str] = None,
         agent_id: Optional[int] = None,
@@ -47,11 +49,14 @@ class Calls:
             last_call_id_fetched=last_call_id_fetched
         )
 
-        return await self.client._make_request(
+        response = await self.client._make_request(
             method="GET",
             endpoint="/v2.1/calls",
             params=params.model_dump(exclude_none=True)
         )
+        
+        # Convert datetime strings in response to Python datetime objects
+        return convert_dict_datetimes(response)
 
     async def get(
         self,
@@ -174,8 +179,8 @@ class Calls:
         self,
         fetch_queue_data: bool = False,
         fetch_ai_data: bool = False,
-        from_datetime: Optional[str] = None,
-        to_datetime: Optional[str] = None,
+        from_datetime: Optional[datetime] = None,
+        to_datetime: Optional[datetime] = None,
         contact_number: Optional[str] = None,
         justcall_number: Optional[str] = None,
         agent_id: Optional[int] = None,
@@ -221,4 +226,5 @@ class Calls:
             params=params.model_dump(exclude_none=True),
             max_items=max_items
         ):
-            yield item
+            # Convert datetime strings in each item to Python datetime objects
+            yield convert_dict_datetimes(item)

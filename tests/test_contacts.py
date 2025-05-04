@@ -141,18 +141,18 @@ class TestContacts:
         """Test iterating through all contacts"""
         mock_responses = [
             {
-                "contacts": [
+                "data": [
                     {"id": 1, "firstname": "John"},
                     {"id": 2, "firstname": "Jane"}
                 ]
             },
             {
-                "contacts": [
+                "data": [
                     {"id": 3, "firstname": "Bob"}
                 ]
             },
             {
-                "contacts": []
+                "data": []
             }
         ]
 
