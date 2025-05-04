@@ -288,6 +288,180 @@ async def test_bulk_iterations(client):
     print(f"Phone numbers processed: {number_count}")
     print(f"All contacts processed: {contact_count}")
     print(f"Matching contacts processed: {query_count}")
+    
+    # Test Campaigns iteration
+    print("\nIterating through all campaigns...")
+    campaign_count = 0
+    async for campaign in client.Campaigns.iter_all():
+        campaign_count += 1
+        if campaign_count % 10 == 0:
+            print(f"Processed {campaign_count} campaigns...")
+    print(f"\nTotal campaigns processed: {campaign_count}")
+    
+    # Update summary to include campaigns
+    print("\n=== UPDATED BULK ITERATION SUMMARY ===")
+    print(f"Calls processed: {call_count}")
+    print(f"Messages processed: {message_count}")
+    print(f"Users processed: {user_count}")
+    print(f"Phone numbers processed: {number_count}")
+    print(f"All contacts processed: {contact_count}")
+    print(f"Matching contacts processed: {query_count}")
+    print(f"Campaigns processed: {campaign_count}")
+
+async def test_campaigns(client):
+    """Test Campaigns API endpoints (read-only)"""
+    print("\n=== CAMPAIGNS API ===")
+    
+    # List campaigns
+    print("\nListing campaigns...")
+    campaigns = await client.Campaigns.list(per_page="20")
+    print(f"Retrieved {len(campaigns.get('data', []))} campaigns")
+    
+    # If we have campaigns, show some details
+    if campaigns.get('data'):
+        print("\nCampaign details:")
+        for i, campaign in enumerate(campaigns['data'][:3]):  # Show first 3
+            print(f"Campaign {i+1}: ID={campaign.get('id')}, Name={campaign.get('name')}")
+    else:
+        print("No campaigns found")
+    
+    # Test bulk iteration
+    print("\nTesting bulk iteration of all campaigns...")
+    campaign_count = 0
+    async for campaign in client.Campaigns.iter_all(max_items=100):
+        campaign_count += 1
+        if campaign_count % 10 == 0:
+            print(f"Processed {campaign_count} campaigns...")
+    
+    print(f"\nTotal campaigns processed: {campaign_count}")
+
+async def test_campaign_contacts(client):
+    """Test Campaign Contacts API endpoints (read-only)"""
+    print("\n=== CAMPAIGN CONTACTS API ===")
+    
+    # Get custom fields
+    print("\nGetting custom fields for campaign contacts...")
+    try:
+        custom_fields = await client.CampaignContacts.get_custom_fields()
+        print(f"Retrieved {len(custom_fields.get('data', []))} custom fields")
+        
+        # Show custom fields details if available
+        if custom_fields.get('data'):
+            print("\nCustom fields details:")
+            for i, field in enumerate(custom_fields['data'][:3]):  # Show first 3
+                print(f"Field {i+1}: Label={field.get('label')}, Key={field.get('key')}, Type={field.get('type')}")
+        else:
+            print("No custom fields found")
+    except Exception as e:
+        print(f"Error getting custom fields: {e}")
+    
+    # List campaign contacts (if we have campaigns)
+    print("\nListing campaigns to find one with contacts...")
+    campaigns = await client.Campaigns.list()
+    
+    if campaigns.get('data'):
+        campaign_id = campaigns['data'][0]['id']
+        print(f"\nListing contacts for campaign ID: {campaign_id}")
+        
+        try:
+            contacts = await client.CampaignContacts.list(campaign_id=str(campaign_id))
+            print(f"Retrieved {len(contacts.get('data', []))} contacts")
+            
+            # Show contact details if available
+            if contacts.get('data'):
+                print("\nContact details:")
+                for i, contact in enumerate(contacts['data'][:3]):  # Show first 3
+                    print(f"Contact {i+1}: ID={contact.get('id')}, Name={contact.get('name')}, Phone={contact.get('phone')}")
+                
+                # Test bulk iteration
+                print("\nTesting bulk iteration of campaign contacts...")
+                contact_count = 0
+                async for contact in client.CampaignContacts.iter_all(
+                    campaign_id=str(campaign_id),
+                    max_items=100
+                ):
+                    contact_count += 1
+                    if contact_count % 10 == 0:
+                        print(f"Processed {contact_count} contacts...")
+                
+                print(f"\nTotal campaign contacts processed: {contact_count}")
+            else:
+                print("No contacts found in this campaign")
+        except Exception as e:
+            print(f"Error listing campaign contacts: {e}")
+    else:
+        print("No campaigns found to list contacts")
+
+async def test_campaign_calls(client):
+    """Test Campaign Calls API endpoints (read-only)"""
+    print("\n=== CAMPAIGN CALLS API ===")
+    
+    # List campaign calls
+    print("\nListing campaigns to find one for calls...")
+    campaigns = await client.Campaigns.list()
+    
+    if campaigns.get('data'):
+        campaign_id = campaigns['data'][0]['id']
+        print(f"\nListing calls for campaign ID: {campaign_id}")
+        
+        try:
+            # Get calls for a specific campaign
+            from datetime import datetime, timedelta
+            today = datetime.now()
+            one_month_ago = today - timedelta(days=30)
+            start_date = one_month_ago.strftime("%Y-%m-%d")
+            end_date = today.strftime("%Y-%m-%d")
+            
+            calls = await client.CampaignCalls.list(
+                campaign_id=str(campaign_id),
+                start_date=start_date,
+                end_date=end_date
+            )
+            print(f"Retrieved {len(calls.get('data', []))} calls out of {calls.get('total', 0)} total")
+            
+            # Show call details if available
+            if calls.get('data'):
+                print("\nCall details:")
+                for i, call in enumerate(calls['data'][:3]):  # Show first 3
+                    print(f"Call {i+1}: ID={call.get('call_id')}, From={call.get('from')}, To={call.get('to')}, Duration={call.get('duration')}")
+                
+                # Test bulk iteration
+                print("\nTesting bulk iteration of campaign calls...")
+                call_count = 0
+                async for call in client.CampaignCalls.iter_all(
+                    campaign_id=str(campaign_id),
+                    start_date=start_date,
+                    end_date=end_date,
+                    max_items=100
+                ):
+                    call_count += 1
+                    if call_count % 10 == 0:
+                        print(f"Processed {call_count} calls...")
+                
+                print(f"\nTotal campaign calls processed: {call_count}")
+            else:
+                print("No calls found for this campaign in the last 30 days")
+        except Exception as e:
+            print(f"Error listing campaign calls: {e}")
+    else:
+        print("No campaigns found to list calls")
+    
+    # List calls from all campaigns
+    print("\nListing calls from all campaigns in the last 7 days...")
+    try:
+        from datetime import datetime, timedelta
+        today = datetime.now()
+        one_week_ago = today - timedelta(days=7)
+        start_date = one_week_ago.strftime("%Y-%m-%d")
+        end_date = today.strftime("%Y-%m-%d")
+        
+        all_calls = await client.CampaignCalls.list(
+            start_date=start_date,
+            end_date=end_date
+        )
+        print(f"Retrieved {len(all_calls.get('data', []))} calls from all campaigns")
+    except Exception as e:
+        print(f"Error listing all campaign calls: {e}")
 
 async def main():
     """Main function to run all examples"""
@@ -311,6 +485,9 @@ async def main():
         await test_phone_numbers(client)
         await test_users(client)
         await test_contacts(client)
+        await test_campaigns(client)
+        await test_campaign_contacts(client)
+        await test_campaign_calls(client)
         await test_bulk_iterations(client)
     
     print("\nExample script completed!")

@@ -7,6 +7,9 @@ from .resources.messages import Messages
 from .resources.phone_numbers import PhoneNumbers
 from .resources.users import Users
 from .resources.contacts import Contacts
+from .resources.campaigns import Campaigns
+from .resources.campaign_contacts import CampaignContacts
+from .resources.campaign_calls import CampaignCalls
 
 class JustCallClient:
     def __init__(self, api_key: str, api_secret: str):
@@ -28,6 +31,9 @@ class JustCallClient:
         self._phone_numbers = PhoneNumbers(self)
         self._users = Users(self)
         self._contacts = Contacts(self)
+        self._campaigns = Campaigns(self)
+        self._campaign_contacts = CampaignContacts(self)
+        self._campaign_calls = CampaignCalls(self)
 
     async def __aenter__(self):
         """Create aiohttp session when entering context manager."""
@@ -195,3 +201,15 @@ class JustCallClient:
     @property
     def Contacts(self) -> Contacts:
         return self._contacts
+
+    @property
+    def Campaigns(self) -> Campaigns:
+        return self._campaigns
+
+    @property
+    def CampaignContacts(self) -> CampaignContacts:
+        return self._campaign_contacts
+
+    @property
+    def CampaignCalls(self) -> CampaignCalls:
+        return self._campaign_calls
