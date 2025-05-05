@@ -4,595 +4,596 @@ This document provides a condensed overview of all methods available in the PyJC
 
 ## Table of Contents
 
-- [Models](#models)
-  - [Campaigns](#campaigns-models)
-  - [Campaign Calls](#campaign-calls-models)
-  - [Campaign Contacts](#campaign-contacts-models)
-  - [Calls](#calls-models)
-  - [Contacts](#contacts-models)
-- [Resources](#resources)
-  - [Campaigns](#campaigns-resources)
-  - [Campaign Calls](#campaign-calls-resources)
-  - [Campaign Contacts](#campaign-contacts-resources)
-  - [Calls](#calls-resources)
-  - [Contacts](#contacts-resources)
-
-## Models
-
-### Campaigns Models
-
-#### `ListCampaignsParams`
-
-Parameters for listing campaigns.
-
-**Fields:**
-- `page` (Optional[str]): The page number to read
-- `per_page` (Optional[str]): The number of results per page (default: 50, max: 100)
-
-#### `CreateCampaignParams`
-
-Parameters for creating a campaign.
-
-**Fields:**
-- `name` (str): The name of the campaign to create
-- `type` (str): The type of campaign (autodial, predictive, or dynamic)
-- `default_number` (Optional[str]): Default number to dial from for the campaign
-- `country_code` (Optional[str]): Country code in ISO-2 format (ISO 3166-1 alpha-2)
-
-### Campaign Calls Models
-
-#### `ListCampaignCallsParams`
-
-Parameters for listing calls from JustCall Sales Dialer.
-
-**Fields:**
-- `campaign_id` (Optional[str]): Campaign ID from which to fetch calls (optional, if not provided all campaign calls will be fetched)
-- `start_date` (Optional[date]): Start date from which to fetch calls
-- `end_date` (Optional[date]): End date from which to fetch calls
-- `order` (Optional[str]): Order of calls: 0 for ascending, 1 for descending. Default is ascending
-- `page` (Optional[str]): Page number to retrieve
-- `per_page` (Optional[str]): Number of results per page (default: 100, max: 100)
-
-### Campaign Contacts Models
-
-#### `GetCustomFieldsParams`
-
-Parameters for getting custom fields for campaign contacts.
-
-**Fields:**
-- No parameters needed for this endpoint
-
-#### `ListCampaignContactsParams`
-
-Parameters for listing contacts in a campaign.
-
-**Fields:**
-- `campaign_id` (str): Campaign ID for which to list contacts
-
-#### `AddCampaignContactParams`
-
-Parameters for adding a contact to a campaign.
-
-**Fields:**
-- `campaign_id` (str): Campaign ID to which the contact will be added
-- `first_name` (Optional[str]): Contact's first name
-- `last_name` (Optional[str]): Contact's last name
-- `phone` (str): Formatted phone number of the contact with country code
-- `custom_props` (Optional[Dict[str, Any]]): Custom properties for the contact (key is the ID of the custom field)
-
-#### `RemoveCampaignContactParams`
-
-Parameters for removing a contact from a campaign.
-
-**Fields:**
-- `campaign_id` (Optional[str]): Campaign ID from which to remove the contact
-- `phone` (Optional[str]): Phone number of the contact to remove
-- `all` (Optional[bool]): If true, removes all contacts from the campaign
-
-### Calls Models
-
-#### `CallDirection`
-
-Enum for call direction to enforce correct casing.
-
-**Values:**
-- `INCOMING`: "Incoming"
-- `OUTGOING`: "Outgoing"
-
-#### `ListCallsParams`
-
-Parameters for listing calls.
-
-**Fields:**
-- `fetch_queue_data` (bool): Fetch queue data like callback time, status, wait duration
-- `fetch_ai_data` (bool): Fetch coaching data by Justcall AI
-- `from_datetime` (Optional[datetime]): Start datetime
-- `to_datetime` (Optional[datetime]): End datetime
-- `contact_number` (Optional[str]): Contact number with country code
-- `justcall_number` (Optional[str]): JustCall number
-- `agent_id` (Optional[int]): ID of the agent
-- `ivr_digit` (Optional[int]): IVR digit for call routing filter
-- `call_direction` (Optional[str]): Call direction (Incoming/Outgoing - case sensitive)
-- `call_type` (Optional[str]): Call type (answered/unanswered/missed/voicemail/abandoned)
-- `call_traits` (Optional[List[str]]): Traits associated with calls
-- `page` (Optional[int]): Page number
-- `per_page` (Optional[int]): Calls per page (min: 20, max: 100)
-- `sort` (str): Parameter to sort calls by (default: "id")
-- `order` (str): Sort order (asc/desc) (default: "desc")
-- `last_call_id_fetched` (Optional[int]): ID of last fetched call
-
-#### `GetCallParams`
-
-Parameters for getting a single call.
-
-**Fields:**
-- `fetch_queue_data` (bool): Fetch queue data like callback time, status, wait duration
-- `fetch_ai_data` (bool): Fetch coaching data by Justcall AI
-
-#### `UpdateCallParams`
-
-Parameters for updating a call.
-
-**Fields:**
-- `notes` (Optional[str]): Updated notes for the call (replaces existing notes)
-- `disposition_code` (Optional[str]): New/updated disposition code (must be from admin-created options)
-- `rating` (Optional[float]): Rating from 0 to 5 (allows .5 decimals)
-
-### Contacts Models
-
-#### `ListContactsParams`
-
-Parameters for listing contacts.
-
-**Fields:**
-- `page` (str): Page number (v1 API uses string) (default: "1")
-- `per_page` (str): Results per page (max: 100) (default: "50")
-
-#### `QueryContactsParams`
-
-Parameters for querying contacts.
-
-**Fields:**
-- `id` (Optional[int]): Unique id of the contact
-- `firstname` (Optional[str]): First name of the contact
-- `lastname` (Optional[str]): Last name of the contact
-- `phone` (Optional[str]): Phone number of the contact
-- `email` (Optional[str]): Email address associated with the contact
-- `company` (Optional[str]): Company associated with the contact
-- `notes` (Optional[str]): Custom information associated with the contact
-- `page` (Optional[str]): The page number to read (default: "1")
-- `per_page` (Optional[str]): Number of results per page (default: "100")
-
-#### `OtherPhone`
-
-Model for additional phone numbers.
-
-**Fields:**
-- `label` (str): Label for the phone number
-- `number` (str): The phone number
-
-#### `UpdateContactParams`
-
-Parameters for updating a contact.
-
-**Fields:**
-- `id` (int): Unique id of the contact
-- `firstname` (str): First name of the contact
-- `phone` (str): Phone number of the contact
-- `lastname` (Optional[str]): Last name of the contact
-- `email` (Optional[str]): Email address associated with the contact
-- `company` (Optional[str]): Company associated with the contact
-- `notes` (Optional[str]): Custom information associated with the contact
-- `other_phones` (Optional[OtherPhone]): Additional phone numbers
-
-#### `CreateContactParams`
-
-Parameters for creating a new contact.
-
-**Fields:**
-- `firstname` (str): First name of the contact
-- `phone` (str): Phone number of the contact
-- `lastname` (Optional[str]): Last name of the contact
-- `email` (Optional[str]): Email address of the contact
-- `company` (Optional[str]): Company name
-- `notes` (Optional[str]): Additional notes
-- `acrossteam` (Optional[int]): Create for all team members (1) or owner only (0)
-- `agentid` (Optional[int]): Specific agent ID to create contact for
-
-#### `DeleteContactParams`
-
-Parameters for deleting a contact.
-
-**Fields:**
-- `id` (int): Unique id of the contact
-
-#### `ContactActionType`
-
-Type of contact action.
-
-**Values:**
-- `BLACKLIST`: "0"
-- `DND`: "1"
-- `DNM`: "2"
-
-#### `ContactActionOperation`
-
-Operation to perform.
-
-**Values:**
-- `REMOVE`: "0"
-- `ADD`: "1"
-
-#### `ContactActionParams`
-
-Parameters for contact actions (DND, blacklist, etc).
-
-**Fields:**
-- `number` (str): Phone number to act on
-- `type` (ContactActionType): Type of action (blacklist, DND, DNM)
-- `action` (ContactActionOperation): Action to perform (add/remove)
-- `acrossteam` (Optional[str]): Apply across team (1) or individual (0) (default: "1")
-
-## Resources
-
-### Campaigns Resources
-
-#### `list(page: Optional[str] = None, per_page: Optional[str] = None) -> Dict[str, Any]`
+- [Campaigns](#campaigns)
+- [Campaign Calls](#campaign-calls)
+- [Campaign Contacts](#campaign-contacts)
+- [Calls](#calls)
+- [Contacts](#contacts)
+
+## Campaigns
+
+### `list(page=None, per_page=None)`
 
 List all Sales Dialer campaigns.
 
-**Parameters:**
-- `page` (Optional[str]): The page number to read
-- `per_page` (Optional[str]): The number of results per page (default: 50, max: 100)
+**Input:**
+- `page` (optional): The page number to read
+- `per_page` (optional): The number of results per page (default: 50, max: 100)
 
-**Returns:**
-- `Dict[str, Any]`: List of campaigns with status and count
+**Output:**
+- Dictionary containing:
+  - `status`: Status of the request ("success" or "error")
+  - `data`: List of campaign objects with details like id, name, type, etc.
+  - `count`: Total number of campaigns
 
-#### `create(name: str, type: str, default_number: Optional[str] = None, country_code: Optional[str] = None) -> Dict[str, Any]`
+**Example:**
+```python
+campaigns = await client.campaigns.list(page="1", per_page="50")
+```
+
+### `create(name, type, default_number=None, country_code=None)`
 
 Create a campaign in Sales Dialer.
 
-**Parameters:**
-- `name` (str): The name of the campaign to create
-- `type` (str): The type of campaign (autodial, predictive, or dynamic)
-- `default_number` (Optional[str]): Default number to dial from for the campaign
-- `country_code` (Optional[str]): Country code in ISO-2 format (ISO 3166-1 alpha-2)
+**Input:**
+- `name`: The name of the campaign to create
+- `type`: The type of campaign (autodial, predictive, or dynamic)
+- `default_number` (optional): Default number to dial from for the campaign
+- `country_code` (optional): Country code in ISO-2 format (ISO 3166-1 alpha-2)
 
-**Returns:**
-- `Dict[str, Any]`: Response containing campaign_id and status
+**Output:**
+- Dictionary containing:
+  - `status`: Status of the request ("success" or "error")
+  - `campaign_id`: ID of the created campaign
+  - `message`: Success or error message
 
-#### `iter_all(max_items: Optional[int] = None) -> AsyncIterator[Dict[str, Any]]`
+**Example:**
+```python
+result = await client.campaigns.create(
+    name="My Campaign", 
+    type="autodial", 
+    default_number="+15551234567"
+)
+```
+
+### `iter_all(max_items=None)`
 
 Iterate through all campaigns. Automatically handles pagination.
 
-**Parameters:**
-- `max_items` (Optional[int]): Maximum number of items to return (None for all)
+**Input:**
+- `max_items` (optional): Maximum number of items to return (None for all)
 
-**Yields:**
-- `Dict[str, Any]`: Individual campaign records
+**Output:**
+- Async iterator yielding individual campaign records
 
-### Campaign Calls Resources
+**Example:**
+```python
+async for campaign in client.campaigns.iter_all(max_items=100):
+    print(campaign["id"], campaign["name"])
+```
 
-#### `list(campaign_id: Optional[str] = None, start_date: Optional[date] = None, end_date: Optional[date] = None, order: Optional[str] = None, page: Optional[str] = None, per_page: Optional[str] = None) -> Dict[str, Any]`
+## Campaign Calls
+
+### `list(campaign_id=None, start_date=None, end_date=None, order=None, page=None, per_page=None)`
 
 List all calls made from JustCall Sales Dialer.
 
-**Parameters:**
-- `campaign_id` (Optional[str]): Campaign ID from which to fetch calls
-- `start_date` (Optional[date]): Start date from which to fetch calls
-- `end_date` (Optional[date]): End date from which to fetch calls
-- `order` (Optional[str]): Order of calls: 0 for ascending, 1 for descending
-- `page` (Optional[str]): Page number to retrieve
-- `per_page` (Optional[str]): Number of results per page (default: 100, max: 100)
+**Input:**
+- `campaign_id` (optional): Campaign ID from which to fetch calls
+- `start_date` (optional): Start date from which to fetch calls (Python date object)
+- `end_date` (optional): End date from which to fetch calls (Python date object)
+- `order` (optional): Order of calls: "0" for ascending, "1" for descending
+- `page` (optional): Page number to retrieve
+- `per_page` (optional): Number of results per page (default: 100, max: 100)
 
-**Returns:**
-- `Dict[str, Any]`: List of campaign calls with status, count, and total
+**Output:**
+- Dictionary containing:
+  - `status`: Status of the request ("success" or "error")
+  - `data`: List of call objects with details like id, campaign_id, agent_id, etc.
+  - `count`: Number of calls on current page
+  - `total`: Total number of calls matching the criteria
 
 **Note:**
 - If campaign_id is not provided, all calls from all campaigns will be fetched
 
-#### `iter_all(campaign_id: Optional[str] = None, start_date: Optional[date] = None, end_date: Optional[date] = None, order: Optional[str] = None, max_items: Optional[int] = None) -> AsyncIterator[Dict[str, Any]]`
+**Example:**
+```python
+from datetime import date
+
+calls = await client.campaign_calls.list(
+    campaign_id="12345",
+    start_date=date(2025, 1, 1),
+    end_date=date(2025, 1, 31),
+    order="0"
+)
+```
+
+### `iter_all(campaign_id=None, start_date=None, end_date=None, order=None, max_items=None)`
 
 Iterate through all calls made from JustCall Sales Dialer. Automatically handles pagination.
 
-**Parameters:**
-- `campaign_id` (Optional[str]): Campaign ID from which to fetch calls
-- `start_date` (Optional[date]): Start date from which to fetch calls
-- `end_date` (Optional[date]): End date from which to fetch calls
-- `order` (Optional[str]): Order of calls: 0 for ascending, 1 for descending
-- `max_items` (Optional[int]): Maximum number of items to return (None for all)
+**Input:**
+- `campaign_id` (optional): Campaign ID from which to fetch calls
+- `start_date` (optional): Start date from which to fetch calls (Python date object)
+- `end_date` (optional): End date from which to fetch calls (Python date object)
+- `order` (optional): Order of calls: "0" for ascending, "1" for descending
+- `max_items` (optional): Maximum number of items to return (None for all)
 
-**Yields:**
-- `Dict[str, Any]`: Individual call records
+**Output:**
+- Async iterator yielding individual call records
 
 **Note:**
 - If campaign_id is not provided, all calls from all campaigns will be fetched
 
-### Campaign Contacts Resources
+**Example:**
+```python
+from datetime import date
 
-#### `get_custom_fields() -> Dict[str, Any]`
+async for call in client.campaign_calls.iter_all(
+    campaign_id="12345",
+    start_date=date(2025, 1, 1),
+    end_date=date(2025, 1, 31)
+):
+    print(call["id"], call["phone"], call["duration"])
+```
+
+## Campaign Contacts
+
+### `get_custom_fields()`
 
 Get custom fields for campaign contacts.
 
-**Returns:**
-- `Dict[str, Any]`: List of custom fields with their labels, keys, and types
+**Input:**
+- No parameters needed
 
-#### `list(campaign_id: str) -> Dict[str, Any]`
+**Output:**
+- Dictionary containing:
+  - `status`: Status of the request ("success" or "error")
+  - `data`: List of custom field objects with details like id, label, key, type, etc.
+
+**Example:**
+```python
+custom_fields = await client.campaign_contacts.get_custom_fields()
+```
+
+### `list(campaign_id)`
 
 List all contacts in a campaign.
 
-**Parameters:**
-- `campaign_id` (str): Campaign ID for which to list contacts
+**Input:**
+- `campaign_id`: Campaign ID for which to list contacts
 
-**Returns:**
-- `Dict[str, Any]`: List of contacts in the campaign
+**Output:**
+- Dictionary containing:
+  - `status`: Status of the request ("success" or "error")
+  - `data`: List of contact objects with details like id, first_name, last_name, phone, etc.
 
-#### `add(campaign_id: str, phone: str, first_name: Optional[str] = None, last_name: Optional[str] = None, custom_props: Optional[Dict[str, Any]] = None) -> Dict[str, Any]`
+**Example:**
+```python
+contacts = await client.campaign_contacts.list(campaign_id="12345")
+```
+
+### `add(campaign_id, phone, first_name=None, last_name=None, custom_props=None)`
 
 Add a contact to a campaign.
 
-**Parameters:**
-- `campaign_id` (str): Campaign ID to which the contact will be added
-- `phone` (str): Formatted phone number of the contact with country code
-- `first_name` (Optional[str]): Contact's first name
-- `last_name` (Optional[str]): Contact's last name
-- `custom_props` (Optional[Dict[str, Any]]): Custom properties for the contact
+**Input:**
+- `campaign_id`: Campaign ID to which the contact will be added
+- `phone`: Formatted phone number of the contact with country code
+- `first_name` (optional): Contact's first name
+- `last_name` (optional): Contact's last name
+- `custom_props` (optional): Custom properties for the contact as a dictionary
 
-**Returns:**
-- `Dict[str, Any]`: Added contact details
+**Output:**
+- Dictionary containing:
+  - `status`: Status of the request ("success" or "error")
+  - `data`: Added contact details
+  - `message`: Success or error message
 
-#### `remove(campaign_id: Optional[str] = None, phone: Optional[str] = None, all: Optional[bool] = None) -> Dict[str, Any]`
+**Example:**
+```python
+result = await client.campaign_contacts.add(
+    campaign_id="12345",
+    phone="+15551234567",
+    first_name="John",
+    last_name="Doe",
+    custom_props={"custom_field_1": "value1", "custom_field_2": "value2"}
+)
+```
+
+### `remove(campaign_id=None, phone=None, all=None)`
 
 Remove a contact from a campaign.
 
-**Parameters:**
-- `campaign_id` (Optional[str]): Campaign ID from which to remove the contact
-- `phone` (Optional[str]): Phone number of the contact to remove
-- `all` (Optional[bool]): If true, removes all contacts from the campaign
+**Input:**
+- `campaign_id` (optional): Campaign ID from which to remove the contact
+- `phone` (optional): Phone number of the contact to remove
+- `all` (optional): If true, removes all contacts from the campaign
 
-**Returns:**
-- `Dict[str, Any]`: Response with status and message
+**Output:**
+- Dictionary containing:
+  - `status`: Status of the request ("success" or "error")
+  - `message`: Success or error message
 
 **Note:**
 - If only phone is provided, the contact will be removed from all campaigns
 - If all=True, all contacts will be removed from the specified campaign
 
-#### `iter_all(campaign_id: str, max_items: Optional[int] = None) -> AsyncIterator[Dict[str, Any]]`
+**Example:**
+```python
+# Remove a specific contact from a campaign
+result = await client.campaign_contacts.remove(
+    campaign_id="12345",
+    phone="+15551234567"
+)
+
+# Remove all contacts from a campaign
+result = await client.campaign_contacts.remove(
+    campaign_id="12345",
+    all=True
+)
+```
+
+### `iter_all(campaign_id, max_items=None)`
 
 Iterate through all contacts in a campaign.
 
-**Parameters:**
-- `campaign_id` (str): Campaign ID for which to list contacts
-- `max_items` (Optional[int]): Maximum number of items to return (None for all)
+**Input:**
+- `campaign_id`: Campaign ID for which to list contacts
+- `max_items` (optional): Maximum number of items to return (None for all)
 
-**Yields:**
-- `Dict[str, Any]`: Individual contact records
+**Output:**
+- Async iterator yielding individual contact records
 
-### Calls Resources
+**Example:**
+```python
+async for contact in client.campaign_contacts.iter_all(campaign_id="12345"):
+    print(contact["first_name"], contact["last_name"], contact["phone"])
+```
 
-#### `list(fetch_queue_data: bool = False, fetch_ai_data: bool = False, from_datetime: Optional[datetime] = None, to_datetime: Optional[datetime] = None, contact_number: Optional[str] = None, justcall_number: Optional[str] = None, agent_id: Optional[int] = None, ivr_digit: Optional[int] = None, call_direction: Optional[str] = None, call_type: Optional[str] = None, call_traits: Optional[List[str]] = None, page: Optional[int] = None, per_page: Optional[int] = 20, sort: str = "id", order: str = "desc", last_call_id_fetched: Optional[int] = None) -> Dict[str, Any]`
+## Calls
 
-List all calls with optional filtering parameters. Returns a paginated list of calls based on the provided filters.
+### `list(fetch_queue_data=False, fetch_ai_data=False, from_datetime=None, to_datetime=None, contact_number=None, justcall_number=None, agent_id=None, ivr_digit=None, call_direction=None, call_type=None, call_traits=None, page=None, per_page=20, sort="id", order="desc", last_call_id_fetched=None)`
 
-**Parameters:**
-- `fetch_queue_data` (bool): Fetch queue data like callback time, status, wait duration
-- `fetch_ai_data` (bool): Fetch coaching data by Justcall AI
-- `from_datetime` (Optional[datetime]): Start datetime
-- `to_datetime` (Optional[datetime]): End datetime
-- `contact_number` (Optional[str]): Contact number with country code
-- `justcall_number` (Optional[str]): JustCall number
-- `agent_id` (Optional[int]): ID of the agent
-- `ivr_digit` (Optional[int]): IVR digit for call routing filter
-- `call_direction` (Optional[str]): Call direction (Incoming/Outgoing - case sensitive)
-- `call_type` (Optional[str]): Call type (answered/unanswered/missed/voicemail/abandoned)
-- `call_traits` (Optional[List[str]]): Traits associated with calls
-- `page` (Optional[int]): Page number
-- `per_page` (Optional[int]): Calls per page (min: 20, max: 100)
-- `sort` (str): Parameter to sort calls by
-- `order` (str): Sort order (asc/desc)
-- `last_call_id_fetched` (Optional[int]): ID of last fetched call
+List all calls with optional filtering parameters.
 
-**Returns:**
-- `Dict[str, Any]`: List of calls with pagination information
+**Input:**
+- `fetch_queue_data` (optional): Fetch queue data like callback time, status, wait duration
+- `fetch_ai_data` (optional): Fetch coaching data by Justcall AI
+- `from_datetime` (optional): Start datetime (Python datetime object)
+- `to_datetime` (optional): End datetime (Python datetime object)
+- `contact_number` (optional): Contact number with country code
+- `justcall_number` (optional): JustCall number
+- `agent_id` (optional): ID of the agent
+- `ivr_digit` (optional): IVR digit for call routing filter
+- `call_direction` (optional): Call direction ("Incoming"/"Outgoing" - case sensitive)
+- `call_type` (optional): Call type (answered/unanswered/missed/voicemail/abandoned)
+- `call_traits` (optional): List of traits associated with calls
+- `page` (optional): Page number
+- `per_page` (optional): Calls per page (min: 20, max: 100)
+- `sort` (optional): Parameter to sort calls by (default: "id")
+- `order` (optional): Sort order ("asc"/"desc", default: "desc")
+- `last_call_id_fetched` (optional): ID of last fetched call
 
-#### `get(call_id: int, fetch_queue_data: bool = False, fetch_ai_data: bool = False) -> Dict[str, Any]`
+**Output:**
+- Dictionary containing:
+  - `status`: Status of the request ("success" or "error")
+  - `data`: List of call objects with details
+  - `count`: Number of calls on current page
+  - `total`: Total number of calls matching the criteria
+
+**Example:**
+```python
+from datetime import datetime
+
+calls = await client.calls.list(
+    from_datetime=datetime(2025, 1, 1),
+    to_datetime=datetime(2025, 1, 31),
+    call_direction="Outgoing",
+    per_page=50
+)
+```
+
+### `get(call_id, fetch_queue_data=False, fetch_ai_data=False)`
 
 Get details of a specific call by ID.
 
-**Parameters:**
-- `call_id` (int): Unique ID of the call generated by JustCall
-- `fetch_queue_data` (bool): Set to true to fetch queue data like callback time, status, etc.
-- `fetch_ai_data` (bool): Set to true to fetch coaching data by JustCall AI
+**Input:**
+- `call_id`: Unique ID of the call generated by JustCall
+- `fetch_queue_data` (optional): Set to true to fetch queue data like callback time, status, etc.
+- `fetch_ai_data` (optional): Set to true to fetch coaching data by JustCall AI
 
-**Returns:**
-- `Dict[str, Any]`: Call details
+**Output:**
+- Dictionary containing call details
 
-#### `update(call_id: int, notes: Optional[str] = None, disposition_code: Optional[str] = None, rating: Optional[float] = None) -> Dict[str, Any]`
+**Example:**
+```python
+call = await client.calls.get(call_id=12345, fetch_queue_data=True)
+```
+
+### `update(call_id, notes=None, disposition_code=None, rating=None)`
 
 Update a call's details.
 
-**Parameters:**
-- `call_id` (int): Unique ID of the call
-- `notes` (Optional[str]): New notes for the call (replaces existing)
-- `disposition_code` (Optional[str]): New disposition code
-- `rating` (Optional[float]): New rating (0-5, allows .5 increments)
+**Input:**
+- `call_id`: Unique ID of the call
+- `notes` (optional): New notes for the call (replaces existing)
+- `disposition_code` (optional): New disposition code
+- `rating` (optional): New rating (0-5, allows .5 increments)
 
-**Returns:**
-- `Dict[str, Any]`: Updated call details
+**Output:**
+- Dictionary containing updated call details
 
-#### `get_journey(call_id: int) -> Dict[str, Any]`
+**Example:**
+```python
+result = await client.calls.update(
+    call_id=12345,
+    notes="Customer requested follow-up next week",
+    rating=4.5
+)
+```
+
+### `get_journey(call_id)`
 
 Get the journey/timeline of a specific call.
 
-**Parameters:**
-- `call_id` (int): Unique ID of the call generated by JustCall
+**Input:**
+- `call_id`: Unique ID of the call generated by JustCall
 
-**Returns:**
-- `Dict[str, Any]`: Call journey details
+**Output:**
+- Dictionary containing call journey details
 
-#### `get_voice_agent_data(call_id: int) -> Dict[str, Any]`
+**Example:**
+```python
+journey = await client.calls.get_journey(call_id=12345)
+```
+
+### `get_voice_agent_data(call_id)`
 
 Get voice agent data for a specific call.
 
-**Parameters:**
-- `call_id` (int): Unique ID of the call generated by JustCall
+**Input:**
+- `call_id`: Unique ID of the call generated by JustCall
 
-**Returns:**
-- `Dict[str, Any]`: Voice agent data for the call
+**Output:**
+- Dictionary containing voice agent data for the call
 
-#### `download_recording(call_id: int) -> bytes`
+**Example:**
+```python
+voice_data = await client.calls.get_voice_agent_data(call_id=12345)
+```
+
+### `download_recording(call_id)`
 
 Download the recording for a specific call.
 
-**Parameters:**
-- `call_id` (int): Unique ID of the call generated by JustCall
+**Input:**
+- `call_id`: Unique ID of the call generated by JustCall
 
-**Returns:**
-- `bytes`: The recording file data
+**Output:**
+- Bytes object containing the recording file data
 
-**Raises:**
-- `JustCallException`: If the recording doesn't exist or other API errors
+**Example:**
+```python
+recording_data = await client.calls.download_recording(call_id=12345)
 
-#### `iter_all(fetch_queue_data: bool = False, fetch_ai_data: bool = False, from_datetime: Optional[datetime] = None, to_datetime: Optional[datetime] = None, contact_number: Optional[str] = None, justcall_number: Optional[str] = None, agent_id: Optional[int] = None, ivr_digit: Optional[int] = None, call_direction: Optional[str] = None, call_type: Optional[str] = None, call_traits: Optional[List[str]] = None, sort: str = "id", order: str = "desc", max_items: Optional[int] = None) -> AsyncIterator[Dict[str, Any]]`
+# Save to file
+with open("recording.mp3", "wb") as f:
+    f.write(recording_data)
+```
+
+### `iter_all(fetch_queue_data=False, fetch_ai_data=False, from_datetime=None, to_datetime=None, contact_number=None, justcall_number=None, agent_id=None, ivr_digit=None, call_direction=None, call_type=None, call_traits=None, sort="id", order="desc", max_items=None)`
 
 Iterate through all calls matching the filter criteria. Automatically handles pagination.
 
-**Parameters:**
+**Input:**
 - Same as list() method, except page and per_page are handled internally
-- `max_items` (Optional[int]): Maximum number of items to return (None for all)
+- `max_items` (optional): Maximum number of items to return (None for all)
 
-**Yields:**
-- `Dict[str, Any]`: Individual call records
+**Output:**
+- Async iterator yielding individual call records
 
-### Contacts Resources
+**Example:**
+```python
+from datetime import datetime
 
-#### `list(page: Optional[str] = "1", per_page: Optional[str] = "50") -> Dict[str, Any]`
+async for call in client.calls.iter_all(
+    from_datetime=datetime(2025, 1, 1),
+    to_datetime=datetime(2025, 1, 31),
+    call_direction="Outgoing"
+):
+    print(call["id"], call["phone"], call["duration"])
+```
+
+## Contacts
+
+### `list(page="1", per_page="50")`
 
 List contacts with optional filtering parameters.
 
-**Parameters:**
-- `page` (Optional[str]): Page number (v1 API uses string)
-- `per_page` (Optional[str]): Results per page (max: 100)
+**Input:**
+- `page` (optional): Page number (v1 API uses string)
+- `per_page` (optional): Results per page (max: 100)
 
-**Returns:**
-- `Dict[str, Any]`: List of contacts with pagination information
+**Output:**
+- Dictionary containing:
+  - `status`: Status of the request ("success" or "error")
+  - `data`: List of contact objects with details
+  - `count`: Number of contacts on current page
 
-#### `iter_all(max_items: Optional[int] = None) -> AsyncIterator[Dict[str, Any]]`
+**Example:**
+```python
+contacts = await client.contacts.list(page="1", per_page="50")
+```
+
+### `iter_all(max_items=None)`
 
 Iterate through all contacts. Automatically handles pagination.
 
-**Parameters:**
-- `max_items` (Optional[int]): Maximum number of items to return (None for all)
+**Input:**
+- `max_items` (optional): Maximum number of items to return (None for all)
 
-**Yields:**
-- `Dict[str, Any]`: Individual contact records
+**Output:**
+- Async iterator yielding individual contact records
 
-#### `query(id: Optional[int] = None, firstname: Optional[str] = None, lastname: Optional[str] = None, phone: Optional[str] = None, email: Optional[str] = None, company: Optional[str] = None, notes: Optional[str] = None, page: Optional[str] = "1", per_page: Optional[str] = "100") -> Dict[str, Any]`
+**Example:**
+```python
+async for contact in client.contacts.iter_all(max_items=100):
+    print(contact["id"], contact["firstname"], contact["phone"])
+```
+
+### `query(id=None, firstname=None, lastname=None, phone=None, email=None, company=None, notes=None, page="1", per_page="100")`
 
 Query contacts based on search parameters. At least one search parameter is required.
 
-**Parameters:**
-- `id` (Optional[int]): Unique id of the contact
-- `firstname` (Optional[str]): First name of the contact
-- `lastname` (Optional[str]): Last name of the contact
-- `phone` (Optional[str]): Phone number of the contact
-- `email` (Optional[str]): Email address associated with the contact
-- `company` (Optional[str]): Company associated with the contact
-- `notes` (Optional[str]): Custom information associated with the contact
-- `page` (Optional[str]): The page number to read
-- `per_page` (Optional[str]): Number of results per page (max: 100)
+**Input:**
+- `id` (optional): Unique id of the contact
+- `firstname` (optional): First name of the contact
+- `lastname` (optional): Last name of the contact
+- `phone` (optional): Phone number of the contact
+- `email` (optional): Email address associated with the contact
+- `company` (optional): Company associated with the contact
+- `notes` (optional): Custom information associated with the contact
+- `page` (optional): The page number to read
+- `per_page` (optional): Number of results per page (max: 100)
 
-**Returns:**
-- `Dict[str, Any]`: Matching contacts
+**Output:**
+- Dictionary containing:
+  - `status`: Status of the request ("success" or "error")
+  - `data`: List of matching contact objects
+  - `count`: Number of contacts on current page
 
-**Raises:**
-- `ValueError`: If no search parameters are provided
+**Example:**
+```python
+results = await client.contacts.query(
+    firstname="John",
+    lastname="Doe",
+    per_page="50"
+)
+```
 
-#### `iter_query(id: Optional[int] = None, firstname: Optional[str] = None, lastname: Optional[str] = None, phone: Optional[str] = None, email: Optional[str] = None, company: Optional[str] = None, notes: Optional[str] = None, max_items: Optional[int] = None) -> AsyncIterator[Dict[str, Any]]`
+### `iter_query(id=None, firstname=None, lastname=None, phone=None, email=None, company=None, notes=None, max_items=None)`
 
 Iterate through all contacts matching the query parameters. Automatically handles pagination. At least one search parameter is required.
 
-**Parameters:**
+**Input:**
 - Same as query() method, except page and per_page are handled internally
-- `max_items` (Optional[int]): Maximum number of items to return (None for all)
+- `max_items` (optional): Maximum number of items to return (None for all)
 
-**Yields:**
-- `Dict[str, Any]`: Individual contact records
+**Output:**
+- Async iterator yielding individual contact records
 
-**Raises:**
-- `ValueError`: If no search parameters are provided
+**Example:**
+```python
+async for contact in client.contacts.iter_query(firstname="John"):
+    print(contact["id"], contact["firstname"], contact["phone"])
+```
 
-#### `update(id: int, firstname: str, phone: str, lastname: Optional[str] = None, email: Optional[str] = None, company: Optional[str] = None, notes: Optional[str] = None, other_phones: Optional[Dict[str, str]] = None) -> Dict[str, Any]`
+### `update(id, firstname, phone, lastname=None, email=None, company=None, notes=None, other_phones=None)`
 
 Update a contact's information.
 
-**Parameters:**
-- `id` (int): Unique id of the contact
-- `firstname` (str): First name of the contact
-- `phone` (str): Phone number of the contact
-- `lastname` (Optional[str]): Last name of the contact
-- `email` (Optional[str]): Email address associated with the contact
-- `company` (Optional[str]): Company associated with the contact
-- `notes` (Optional[str]): Custom information to associate with the contact
-- `other_phones` (Optional[Dict[str, str]]): Additional phone numbers as {label: number}
+**Input:**
+- `id`: Unique id of the contact
+- `firstname`: First name of the contact
+- `phone`: Phone number of the contact
+- `lastname` (optional): Last name of the contact
+- `email` (optional): Email address associated with the contact
+- `company` (optional): Company associated with the contact
+- `notes` (optional): Custom information to associate with the contact
+- `other_phones` (optional): Additional phone numbers as {label: number}
 
-**Returns:**
-- `Dict[str, Any]`: Updated contact information
+**Output:**
+- Dictionary containing updated contact information
 
-**Raises:**
-- `ValueError`: If required fields are missing
+**Example:**
+```python
+result = await client.contacts.update(
+    id=12345,
+    firstname="John",
+    lastname="Doe",
+    phone="+15551234567",
+    email="john.doe@example.com",
+    other_phones={"Work": "+15559876543"}
+)
+```
 
-#### `create(firstname: str, phone: str, lastname: Optional[str] = None, email: Optional[str] = None, company: Optional[str] = None, notes: Optional[str] = None, acrossteam: Optional[int] = None, agentid: Optional[int] = None) -> Dict[str, Any]`
+### `create(firstname, phone, lastname=None, email=None, company=None, notes=None, acrossteam=None, agentid=None)`
 
 Create a new contact.
 
-**Parameters:**
-- `firstname` (str): First name of the contact
-- `phone` (str): Phone number of the contact
-- `lastname` (Optional[str]): Last name of the contact
-- `email` (Optional[str]): Email address associated with the contact
-- `company` (Optional[str]): Company associated with the contact
-- `notes` (Optional[str]): Custom information to associate with the contact
-- `acrossteam` (Optional[int]): 1 to create contact for all team members, 0 or None for account owner only
-- `agentid` (Optional[int]): Create contact only for specific agent ID
+**Input:**
+- `firstname`: First name of the contact
+- `phone`: Phone number of the contact
+- `lastname` (optional): Last name of the contact
+- `email` (optional): Email address associated with the contact
+- `company` (optional): Company associated with the contact
+- `notes` (optional): Custom information to associate with the contact
+- `acrossteam` (optional): 1 to create contact for all team members, 0 or None for account owner only
+- `agentid` (optional): Create contact only for specific agent ID
 
-**Returns:**
-- `Dict[str, Any]`: Created contact information
+**Output:**
+- Dictionary containing created contact information
 
-**Raises:**
-- `ValueError`: If required fields are missing or invalid
+**Example:**
+```python
+result = await client.contacts.create(
+    firstname="Jane",
+    lastname="Smith",
+    phone="+15551234567",
+    email="jane.smith@example.com",
+    company="Acme Inc",
+    acrossteam=1
+)
+```
 
-#### `delete(id: int) -> Dict[str, Any]`
+### `delete(id)`
 
 Delete a contact.
 
-**Parameters:**
-- `id` (int): Unique id of the contact to delete
+**Input:**
+- `id`: Unique id of the contact to delete
 
-**Returns:**
-- `Dict[str, Any]`: Response indicating success/failure
+**Output:**
+- Dictionary containing response indicating success/failure
 
-**Raises:**
-- `JustCallException`: If deletion fails or contact doesn't exist
+**Example:**
+```python
+result = await client.contacts.delete(id=12345)
+```
 
-#### `action(number: str, type: Union[str, ContactActionType], action: Union[str, ContactActionOperation], acrossteam: Optional[str] = "1") -> Dict[str, Any]`
+### `action(number, type, action, acrossteam="1")`
 
 Perform actions on a contact number (add/remove to/from DND, blacklist, etc).
 
-**Parameters:**
-- `number` (str): Phone number to act on
-- `type` (Union[str, ContactActionType]): Type of action:
+**Input:**
+- `number`: Phone number to act on
+- `type`: Type of action:
   - "0" - Blacklist number
   - "1" - Add to DND list
   - "2" - Add to DNM list
-- `action` (Union[str, ContactActionOperation]): Action to perform:
+- `action`: Action to perform:
   - "0" - Remove from list
   - "1" - Add to list
-- `acrossteam` (Optional[str]): Apply across team ("1") or individual ("0"), defaults to "1"
+- `acrossteam` (optional): Apply across team ("1") or individual ("0"), defaults to "1"
 
-**Returns:**
-- `Dict[str, Any]`: Response indicating success/failure
+**Output:**
+- Dictionary containing response indicating success/failure
 
-**Raises:**
-- `JustCallException`: If the action fails
-- `ValueError`: If parameters are invalid
+**Example:**
+```python
+# Add a number to the blacklist
+result = await client.contacts.action(
+    number="+15551234567",
+    type="0",  # Blacklist
+    action="1"  # Add
+)
+
+# Remove a number from the DND list
+result = await client.contacts.action(
+    number="+15551234567",
+    type="1",  # DND
+    action="0",  # Remove
+    acrossteam="0"  # Only for current user
+)
+```
