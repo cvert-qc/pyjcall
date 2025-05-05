@@ -26,19 +26,26 @@ class JustCallClient:
         self.base_url = "https://api.justcall.io"
         self.session = None
         
-        # Initialize rate limiter with default settings
-        # JustCall API has a limit of 60 requests per minute (1 per second)
+        # Initialize rate limiter with settings matching JustCall API limits
+        # JustCall API has a dual rate limiting system:
+        # 1. Burst limit: 60 requests in a short period
+        # 2. General limit: 3600 requests per hour (1 per second)
         self.rate_limiter = RateLimiter(
-            rate=1.0,  # 1 request per second
-            max_tokens=5,  # Allow bursts of up to 5 requests
+            rate=1.0,  # 1 request per second (3600 per hour)
+            max_tokens=60,  # Match the burst limit of 60 requests
             strategy=RateLimitStrategy.TOKEN_BUCKET,
             window_size=60.0,  # 60-second window for window-based strategies
-            # Define endpoint-specific rate limits if needed
-            endpoint_limits={
-                # Example: limit specific endpoints that might have different rate limits
-                # "/v1/autodialer/calls/list": 0.5,  # 30 requests per minute
-            }
         )
+        
+        # Track API rate limit info
+        self.rate_limit_info = {
+            "burst_limit": 60,
+            "burst_remaining": 60,
+            "burst_reset": 0,
+            "limit": 3600,
+            "remaining": 3600,
+            "reset": 0
+        }
         
         # Initialize resources
         self._calls = Calls(self)
@@ -110,6 +117,9 @@ class JustCallClient:
             url = f"{self.base_url}{endpoint}"
             
             async with self.session.request(method, url, params=params, json=json) as response:
+                # Always update rate limit info from headers if available
+                self._update_rate_limits_from_headers(response.headers)
+                
                 if response.status >= 400:
                     error_data = await response.json()
                     error_message = error_data.get('message', 'Unknown error')
@@ -125,6 +135,9 @@ class JustCallClient:
                         # Print headers to help with debugging
                         headers_str = '\n'.join([f"{k}: {v}" for k, v in rate_limit_headers.items()])
                         print(f"\nRate limit exceeded. Headers:\n{headers_str}\n")
+                        
+                        # Adjust rate limiter based on headers
+                        await self._adjust_rate_limiter_from_headers(rate_limit_headers)
                         
                         # Include headers in the exception message
                         error_message = f"{error_message} Headers: {rate_limit_headers}"
@@ -246,6 +259,55 @@ class JustCallClient:
     def CampaignCalls(self) -> CampaignCalls:
         return self._campaign_calls
         
+    def _update_rate_limits_from_headers(self, headers):
+        """Update internal rate limit tracking based on response headers.
+        
+        Args:
+            headers: Response headers from API call
+        """
+        # Extract rate limit headers
+        try:
+            # Burst limits
+            if 'x-rate-limit-burst-limit' in headers:
+                self.rate_limit_info['burst_limit'] = int(headers['x-rate-limit-burst-limit'])
+            if 'x-rate-limit-burst-remaining' in headers:
+                self.rate_limit_info['burst_remaining'] = int(headers['x-rate-limit-burst-remaining'])
+            if 'x-rate-limit-burst-reset' in headers:
+                self.rate_limit_info['burst_reset'] = int(headers['x-rate-limit-burst-reset'])
+                
+            # General limits
+            if 'x-rate-limit-limit' in headers:
+                self.rate_limit_info['limit'] = int(headers['x-rate-limit-limit'])
+            if 'x-rate-limit-remaining' in headers:
+                self.rate_limit_info['remaining'] = int(headers['x-rate-limit-remaining'])
+            if 'x-rate-limit-reset' in headers:
+                self.rate_limit_info['reset'] = int(headers['x-rate-limit-reset'])
+        except (ValueError, KeyError) as e:
+            print(f"Error parsing rate limit headers: {e}")
+    
+    async def _adjust_rate_limiter_from_headers(self, headers):
+        """Adjust rate limiter settings based on rate limit headers.
+        
+        Args:
+            headers: Rate limit headers from API response
+        """
+        try:
+            # If we're hitting burst limits, slow down dramatically
+            if 'x-rate-limit-burst-remaining' in headers and int(headers['x-rate-limit-burst-remaining']) == 0:
+                burst_reset = int(headers.get('x-rate-limit-burst-reset', 60))
+                print(f"Adjusting rate limiter: Burst limit reached. Slowing down for {burst_reset} seconds.")
+                
+                # Slow down the rate limiter
+                self.rate_limiter.rate = 1.0 / (burst_reset + 5)  # Add buffer
+                
+                # If we have a reset time, wait that long plus a buffer
+                if burst_reset > 0:
+                    print(f"Waiting for {burst_reset + 2} seconds before continuing...")
+                    import asyncio
+                    await asyncio.sleep(burst_reset + 2)  # Wait for reset plus buffer
+        except Exception as e:
+            print(f"Error adjusting rate limiter: {e}")
+    
     def _prepare_request_params(self, params: Dict) -> Dict:
         """Convert parameter values to appropriate string formats for API requests.
         
