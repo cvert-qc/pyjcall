@@ -6,13 +6,13 @@ class RateLimiter:
     """Token bucket rate limiter implementation.
     
     Default settings:
-    - 100 requests per minute (1.67 requests per second)
+    - 60 requests per minute (1 request per second)
     - Burst of up to 5 requests
     """
     
     def __init__(
         self,
-        rate: float = 1.67,  # tokens per second
+        rate: float = 1,  # tokens per second
         max_tokens: int = 5,  # maximum burst size
     ):
         self.rate = rate
