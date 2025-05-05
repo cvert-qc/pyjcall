@@ -1,5 +1,6 @@
 from typing import Dict, Any, Union, AsyncIterator, Optional
 import aiohttp
+import asyncio
 from datetime import date, datetime
 from .resources.calls import Calls
 from .utils.exceptions import JustCallException
