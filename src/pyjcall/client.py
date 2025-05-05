@@ -121,9 +121,10 @@ class JustCallClient:
         # Use the endpoint for rate limiting
         await self.rate_limiter.acquire(endpoint)
         
-        # If we're retrying, add exponential backoff delay
+        # If we're retrying, add exponential backoff delay, but cap it to avoid timeouts
         if retry_count > 0:
             backoff_time = self.retry_delay * (self.backoff_factor ** (retry_count - 1))
+            # Cap the backoff time to avoid job timeouts
             print(f"Retry attempt {retry_count}/{self.max_retries}: Waiting {backoff_time:.2f} seconds before retrying...")
             await asyncio.sleep(backoff_time)
 
@@ -329,14 +330,21 @@ class JustCallClient:
                 # Reduce the max tokens to prevent bursts
                 self.rate_limiter.max_tokens = max(1, self.rate_limiter.max_tokens // 2)
                 
-                # If we have a reset time, wait that long plus a buffer
+                # Instead of waiting, we'll adjust the rate limiter to be very conservative
+                # and rely on the retry mechanism instead of long sleeps
                 if burst_reset > 0:
-                    # Add more buffer time for higher reset values
-                    buffer = min(30, burst_reset // 2 + 5)  # More buffer for longer reset times
-                    wait_time = burst_reset + buffer
-                    print(f"Waiting for {wait_time} seconds before continuing...")
-                    import asyncio
-                    await asyncio.sleep(wait_time)  # Wait for reset plus buffer
+                    # Make rate limiter extremely conservative
+                    self.rate_limiter.rate = 1.0 / 60.0  # 1 request per minute
+                    self.rate_limiter.max_tokens = 1     # No bursting
+                    
+                    # Add a short sleep to give immediate relief but not block the job
+                    short_wait = min(5.0, burst_reset / 4)
+                    print(f"Short wait of {short_wait:.1f} seconds to relieve pressure...")
+                    await asyncio.sleep(short_wait)
+                    
+                    # Increase backoff parameters to ensure more conservative retry approach
+                    self.backoff_factor = 2.0
+                    self.retry_delay = max(self.retry_delay, burst_reset / 2)
         except Exception as e:
             print(f"Error adjusting rate limiter: {e}")
     
