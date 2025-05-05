@@ -47,6 +47,12 @@ class JustCallClient:
             "reset": 0
         }
         
+        # Rate limit backoff settings
+        self.backoff_factor = 1.5  # Exponential backoff multiplier
+        self.max_retries = 5      # Maximum number of retries
+        self.retry_delay = 2.0    # Initial retry delay in seconds
+        self.current_retry = 0    # Current retry count
+        
         # Initialize resources
         self._calls = Calls(self)
         self._messages = Messages(self)
@@ -80,7 +86,8 @@ class JustCallClient:
         endpoint: str, 
         params: Dict = None, 
         json: Dict = None,
-        expect_json: bool = True
+        expect_json: bool = True,
+        retry_count: int = 0
     ) -> Union[Dict[str, Any], bytes]:
         """Make an HTTP request to the JustCall API.
         
@@ -112,6 +119,12 @@ class JustCallClient:
 
         # Use the endpoint for rate limiting
         await self.rate_limiter.acquire(endpoint)
+        
+        # If we're retrying, add exponential backoff delay
+        if retry_count > 0:
+            backoff_time = self.retry_delay * (self.backoff_factor ** (retry_count - 1))
+            print(f"Retry attempt {retry_count}/{self.max_retries}: Waiting {backoff_time:.2f} seconds before retrying...")
+            await asyncio.sleep(backoff_time)
 
         try:
             url = f"{self.base_url}{endpoint}"
@@ -138,6 +151,18 @@ class JustCallClient:
                         
                         # Adjust rate limiter based on headers
                         await self._adjust_rate_limiter_from_headers(rate_limit_headers)
+                        
+                        # Try to retry the request if we haven't exceeded max retries
+                        if retry_count < self.max_retries:
+                            print(f"Retrying request to {endpoint} (attempt {retry_count+1}/{self.max_retries})")
+                            return await self._make_request(
+                                method=method,
+                                endpoint=endpoint,
+                                params=params,
+                                json=json,
+                                expect_json=expect_json,
+                                retry_count=retry_count + 1
+                            )
                         
                         # Include headers in the exception message
                         error_message = f"{error_message} Headers: {rate_limit_headers}"
@@ -297,14 +322,20 @@ class JustCallClient:
                 burst_reset = int(headers.get('x-rate-limit-burst-reset', 60))
                 print(f"Adjusting rate limiter: Burst limit reached. Slowing down for {burst_reset} seconds.")
                 
-                # Slow down the rate limiter
-                self.rate_limiter.rate = 1.0 / (burst_reset + 5)  # Add buffer
+                # Slow down the rate limiter significantly
+                self.rate_limiter.rate = 1.0 / (burst_reset + 10)  # Add larger buffer
+                
+                # Reduce the max tokens to prevent bursts
+                self.rate_limiter.max_tokens = max(1, self.rate_limiter.max_tokens // 2)
                 
                 # If we have a reset time, wait that long plus a buffer
                 if burst_reset > 0:
-                    print(f"Waiting for {burst_reset + 2} seconds before continuing...")
+                    # Add more buffer time for higher reset values
+                    buffer = min(30, burst_reset // 2 + 5)  # More buffer for longer reset times
+                    wait_time = burst_reset + buffer
+                    print(f"Waiting for {wait_time} seconds before continuing...")
                     import asyncio
-                    await asyncio.sleep(burst_reset + 2)  # Wait for reset plus buffer
+                    await asyncio.sleep(wait_time)  # Wait for reset plus buffer
         except Exception as e:
             print(f"Error adjusting rate limiter: {e}")
     
