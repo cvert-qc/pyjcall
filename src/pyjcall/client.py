@@ -1,8 +1,10 @@
 from typing import Dict, Any, Union, AsyncIterator, Optional
 import aiohttp
+from datetime import date, datetime
 from .resources.calls import Calls
 from .utils.exceptions import JustCallException
-from .utils.rate_limiter import RateLimiter
+from .utils.rate_limiter import RateLimiter, RateLimitStrategy
+from .utils.datetime import to_api_date, to_api_datetime
 from .resources.messages import Messages
 from .resources.phone_numbers import PhoneNumbers
 from .resources.users import Users
@@ -23,7 +25,20 @@ class JustCallClient:
         self.api_secret = api_secret
         self.base_url = "https://api.justcall.io"
         self.session = None
-        self.rate_limiter = RateLimiter()
+        
+        # Initialize rate limiter with default settings
+        # JustCall API has a limit of 60 requests per minute (1 per second)
+        self.rate_limiter = RateLimiter(
+            rate=1.0,  # 1 request per second
+            max_tokens=5,  # Allow bursts of up to 5 requests
+            strategy=RateLimitStrategy.TOKEN_BUCKET,
+            window_size=60.0,  # 60-second window for window-based strategies
+            # Define endpoint-specific rate limits if needed
+            endpoint_limits={
+                # Example: limit specific endpoints that might have different rate limits
+                # "/v1/autodialer/calls/list": 0.5,  # 30 requests per minute
+            }
+        )
         
         # Initialize resources
         self._calls = Calls(self)
@@ -84,14 +99,12 @@ class JustCallClient:
                 }
             )
 
-        # Convert boolean values to integers    
+        # Convert parameter values to appropriate string formats
         if params:
-            params = {
-                k: (1 if v is True else 0 if v is False else v)
-                for k, v in params.items()
-            }
+            params = self._prepare_request_params(params)
 
-        await self.rate_limiter.acquire()
+        # Use the endpoint for rate limiting
+        await self.rate_limiter.acquire(endpoint)
 
         try:
             url = f"{self.base_url}{endpoint}"
@@ -153,6 +166,8 @@ class JustCallClient:
                 params[page_key] = str(page)
             elif json is not None:
                 json[page_key] = str(page)
+                # Also convert any datetime objects in JSON body
+                json = self._prepare_request_params(json)
             
             # Make the request
             response = await self._make_request(
@@ -213,3 +228,43 @@ class JustCallClient:
     @property
     def CampaignCalls(self) -> CampaignCalls:
         return self._campaign_calls
+        
+    def _prepare_request_params(self, params: Dict) -> Dict:
+        """Convert parameter values to appropriate string formats for API requests.
+        
+        Handles:
+        - Boolean values to integers (True -> 1, False -> 0)
+        - datetime objects to string format
+        - date objects to string format
+        
+        Args:
+            params: Dictionary of parameters
+            
+        Returns:
+            Dictionary with values converted to appropriate string formats
+        """
+        if not params:
+            return params
+            
+        result = {}
+        for k, v in params.items():
+            if v is True:
+                result[k] = 1
+            elif v is False:
+                result[k] = 0
+            elif isinstance(v, datetime):
+                result[k] = to_api_datetime(v)
+            elif isinstance(v, date):
+                result[k] = to_api_date(v)
+            elif isinstance(v, dict):
+                result[k] = self._prepare_request_params(v)
+            elif isinstance(v, list):
+                result[k] = [self._prepare_request_params(item) if isinstance(item, dict) 
+                             else to_api_datetime(item) if isinstance(item, datetime)
+                             else to_api_date(item) if isinstance(item, date)
+                             else item 
+                             for item in v]
+            else:
+                result[k] = v
+                
+        return result
