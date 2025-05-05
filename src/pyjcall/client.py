@@ -112,9 +112,26 @@ class JustCallClient:
             async with self.session.request(method, url, params=params, json=json) as response:
                 if response.status >= 400:
                     error_data = await response.json()
+                    error_message = error_data.get('message', 'Unknown error')
+                    
+                    # Check if it's a rate limit error
+                    if 'rate limit' in error_message.lower() or response.status == 429:
+                        # Extract and log rate limit headers
+                        rate_limit_headers = {
+                            k: v for k, v in response.headers.items() 
+                            if 'rate' in k.lower() or 'limit' in k.lower() or 'remaining' in k.lower()
+                        }
+                        
+                        # Print headers to help with debugging
+                        headers_str = '\n'.join([f"{k}: {v}" for k, v in rate_limit_headers.items()])
+                        print(f"\nRate limit exceeded. Headers:\n{headers_str}\n")
+                        
+                        # Include headers in the exception message
+                        error_message = f"{error_message} Headers: {rate_limit_headers}"
+                    
                     raise JustCallException(
                         status_code=response.status,
-                        message=f"API Error: {error_data.get('message', 'Unknown error')}"
+                        message=f"API Error: {error_message}"
                     )
                 
                 if expect_json:
