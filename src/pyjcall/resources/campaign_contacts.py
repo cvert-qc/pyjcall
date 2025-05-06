@@ -156,7 +156,7 @@ class CampaignContacts:
         """
         count = 0
         page = 0  # v2 API starts with page 0
-        per_page = 10  # Default for v2 API
+        per_page = 100  # Default for v2 API
         
         while True:
             response = self.list(

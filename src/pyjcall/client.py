@@ -21,7 +21,7 @@ from .resources.campaign_calls import CampaignCalls
 logger = logging.getLogger(__name__)
 
 # Rate limiting constants
-DEFAULT_RATE_LIMIT = 55  # requests per minute
+DEFAULT_RATE_LIMIT = 1  # requests per minute
 RATE_LIMIT_NAMESPACE = "justcall_api"
 
 class JustCallClient:
@@ -42,7 +42,7 @@ class JustCallClient:
         self.rate_limit = rate_limit
         self.storage = MemoryStorage()
         self.rate_limiter = FixedWindowRateLimiter(self.storage)
-        self.rate = RateLimitItemPerSecond(rate_limit, 60)
+        self.rate = RateLimitItemPerSecond(rate_limit, 1)
         
         # Initialize resources
         self._calls = Calls(self)
