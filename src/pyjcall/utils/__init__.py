@@ -1,5 +1,4 @@
 from .exceptions import JustCallException
-from .rate_limiter import RateLimiter
 from .datetime import (
     to_api_date,
     to_api_datetime,
@@ -10,7 +9,6 @@ from .datetime import (
 
 __all__ = [
     'JustCallException',
-    'RateLimiter',
     'to_api_date',
     'to_api_datetime',
     'from_api_date',
