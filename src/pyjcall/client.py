@@ -6,7 +6,7 @@ import logging
 from datetime import date, datetime
 from limits import RateLimitItemPerSecond
 from limits.storage import MemoryStorage
-from limits.strategies import MovingWindowRateLimiter
+from limits.strategies import FixedWindowRateLimiter
 from .resources.calls import Calls
 from .utils.exceptions import JustCallException
 from .utils.datetime import to_api_date, to_api_datetime
@@ -21,7 +21,7 @@ from .resources.campaign_calls import CampaignCalls
 logger = logging.getLogger(__name__)
 
 # Rate limiting constants
-DEFAULT_RATE_LIMIT = 60  # requests per minute
+DEFAULT_RATE_LIMIT = 55  # requests per minute
 RATE_LIMIT_NAMESPACE = "justcall_api"
 
 class JustCallClient:
@@ -41,7 +41,7 @@ class JustCallClient:
         # Initialize rate limiter with moving window strategy
         self.rate_limit = rate_limit
         self.storage = MemoryStorage()
-        self.rate_limiter = MovingWindowRateLimiter(self.storage)
+        self.rate_limiter = FixedWindowRateLimiter(self.storage)
         self.rate = RateLimitItemPerSecond(rate_limit, 60)
         
         # Initialize resources
@@ -107,14 +107,14 @@ class JustCallClient:
         request_params = self._prepare_request_params(params) if params else None
         
         try:
+            was_blocked = False
             url = f"{self.base_url}{endpoint}"
             logger.debug(f"Making {method} request to {url}")
             
             # Apply rate limiting
             if not self.rate_limiter.test(self.rate, RATE_LIMIT_NAMESPACE, "api"):
-                # If we've hit the rate limit, calculate sleep time
-                # Wait for a short time before retrying
                 logger.warning(f"Rate limit reached for justcall api, sleeping until limit is reset")
+                was_blocked = True
 
                 count = 0
                 while not self.rate_limiter.test(self.rate, RATE_LIMIT_NAMESPACE, "api") and count < 120:
@@ -149,6 +149,10 @@ class JustCallClient:
                     message=f"API Error: {error_message}"
                 )
                 raise exception
+
+            else:
+                if was_blocked:
+                    logger.info("Request completed with success after waiting")
                 
             if expect_json:
                 try:
