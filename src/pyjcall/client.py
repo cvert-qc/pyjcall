@@ -114,8 +114,7 @@ class JustCallClient:
             if not self.rate_limiter.test(self.rate, RATE_LIMIT_NAMESPACE, "api"):
                 # If we've hit the rate limit, calculate sleep time
                 # Wait for a short time before retrying
-                sleep_time = 5.0  # Default to 1 second
-                logger.warning(f"Rate limit reached for justcall api, sleeping for {sleep_time:.2f} seconds")
+                logger.warning(f"Rate limit reached for justcall api, sleeping until limit is reset")
 
                 count = 0
                 while not self.rate_limiter.test(self.rate, RATE_LIMIT_NAMESPACE, "api") and count < 120:
@@ -142,6 +141,8 @@ class JustCallClient:
                 except Exception:
                     # If JSON parsing fails, use the text or status
                     error_message = response.text or f"HTTP {response.status_code}"
+                    # Concatenate headers
+                    error_message += f"\nHeaders: {response.headers}"
                 
                 exception = JustCallException(
                     status_code=response.status_code,
