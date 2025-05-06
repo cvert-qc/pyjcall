@@ -203,7 +203,8 @@ class JustCallClient:
         
         # Use the retry handler to execute the request with retry logic
         try:
-            return self.retry_handler.execute_with_retry(_do_request)
+            # Pass the rate_limiter to the retry handler so it can update from headers
+            return self.retry_handler.execute_with_retry(_do_request, rate_limiter=self.rate_limiter)
         except JustCallException as e:
             # Re-raise JustCallException directly
             raise
@@ -351,73 +352,31 @@ class JustCallClient:
         Args:
             headers: Rate limit headers from API response
         """
-        # Constants for rate limiting adjustments
-        MIN_RATE = 1.0 / 60.0  # Minimum rate: 1 request per minute
-        BUFFER_FACTOR = 1.2    # Safety buffer factor for rate limiting
-        SHORT_WAIT_FACTOR = 0.25  # Factor for short wait calculation
-        MAX_SHORT_WAIT = 5.0  # Maximum short wait time in seconds
+        # Let the rate limiter handle the adaptive rate limiting directly
+        # This is more efficient and ensures consistent behavior
+        self.rate_limiter.update_from_headers(headers)
         
+        # Update retry handler configuration based on burst reset time
         try:
-            # If we're hitting burst limits, slow down dramatically
-            if 'x-rate-limit-burst-remaining' in headers:
+            if 'x-rate-limit-burst-remaining' in headers and 'x-rate-limit-burst-reset' in headers:
                 burst_remaining = int(headers['x-rate-limit-burst-remaining'])
                 burst_reset = int(headers.get('x-rate-limit-burst-reset', 60))
                 
-                # Calculate how much to slow down based on remaining burst capacity
+                # Only update retry configuration if we're hitting limits
                 if burst_remaining == 0:
-                    logger.warning(f"Burst limit reached. Slowing down for {burst_reset} seconds.")
-                    
-                    # Create a new rate limit configuration
-                    new_rate = max(MIN_RATE, 1.0 / (burst_reset * BUFFER_FACTOR))
-                    new_max_tokens = 1  # No bursting when we've hit limits
-                    
-                    # Update the rate limiter configuration
-                    self.rate_limiter.rate = new_rate
-                    self.rate_limiter.max_tokens = new_max_tokens
-                    
-                    logger.info(f"Rate limiter adjusted: rate={new_rate:.6f}/s, max_tokens={new_max_tokens}")
-                    
-                    # Add a short sleep to give immediate relief but not block the job
-                    short_wait = min(MAX_SHORT_WAIT, burst_reset * SHORT_WAIT_FACTOR)
-                    logger.info(f"Short wait of {short_wait:.1f} seconds to relieve pressure...")
-                    time.sleep(short_wait)
-                    
-                    # Update retry handler configuration
+                    # Update retry handler configuration to be more aggressive
                     new_retry_config = RetryConfig(
                         max_retries=self.retry_handler.config.max_retries,
-                        retry_delay=max(self.retry_handler.config.retry_delay, burst_reset / 2),
+                        retry_delay=max(self.retry_handler.config.retry_delay, burst_reset),
                         backoff_factor=2.0,  # More aggressive backoff
                         retry_codes=self.retry_handler.config.retry_codes
                     )
                     self.retry_handler.update_config(new_retry_config)
-                    
-                elif burst_remaining < 10:  # Getting close to limits
-                    # Gradually slow down as we approach limits
-                    slowdown_factor = max(0.2, burst_remaining / 10.0)
-                    new_rate = self.rate_limiter.rate * slowdown_factor
-                    
-                    logger.info(f"Approaching burst limit ({burst_remaining} remaining). "
-                               f"Reducing rate to {new_rate:.6f}/s")
-                    
-                    self.rate_limiter.rate = new_rate
-            
-            # Also check general rate limits
-            if 'x-rate-limit-remaining' in headers and 'x-rate-limit-limit' in headers:
-                remaining = int(headers['x-rate-limit-remaining'])
-                limit = int(headers['x-rate-limit-limit'])
-                reset = int(headers.get('x-rate-limit-reset', 3600))
-                
-                # If we're below 10% of our limit, slow down
-                if remaining < limit * 0.1 and remaining > 0:
-                    new_rate = max(MIN_RATE, remaining / reset)
-                    logger.info(f"General rate limit low ({remaining}/{limit} remaining). "
-                               f"Adjusting rate to {new_rate:.6f}/s")
-                    self.rate_limiter.rate = new_rate
-                    
+                    logger.info(f"Retry configuration updated: max_retries={new_retry_config.max_retries}, "
+                               f"retry_delay={new_retry_config.retry_delay}s, backoff_factor={new_retry_config.backoff_factor}")
         except Exception as e:
-            logger.error(f"Error adjusting rate limiter: {e}")
-            # Don't let rate limiter adjustment failures break the client
-            # Just continue with current settings
+            logger.error(f"Error adjusting retry configuration: {e}")
+            # Don't let retry configuration adjustment failures break the client
     
     def _prepare_request_params(self, params: Dict) -> Dict:
         """Convert parameter values to appropriate string formats for API requests.

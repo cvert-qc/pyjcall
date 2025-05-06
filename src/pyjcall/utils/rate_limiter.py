@@ -1,8 +1,9 @@
 import time
 import threading
+import random
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Optional, Dict, List, Callable, Any, Deque
+from typing import Optional, Dict, List, Callable, Any, Deque, Union
 from enum import Enum
 import logging
 
@@ -20,6 +21,16 @@ DEFAULT_RATE = 1.0  # Default requests per second
 DEFAULT_MAX_TOKENS = 5  # Default maximum burst size
 DEFAULT_WINDOW_SIZE = 60.0  # Default window size in seconds
 MIN_WAIT_TIME = 0.1  # Minimum wait time in seconds
+DEFAULT_PRESSURE_RELIEF_WAIT = 0.5  # Default wait time to relieve pressure
+DEFAULT_JITTER_FACTOR = 0.1  # Default jitter factor (10%)
+
+# Rate limit header constants
+HEADER_BURST_LIMIT = "x-rate-limit-burst-limit"
+HEADER_BURST_REMAINING = "x-rate-limit-burst-remaining"
+HEADER_BURST_RESET = "x-rate-limit-burst-reset"
+HEADER_LIMIT = "x-rate-limit-limit"
+HEADER_REMAINING = "x-rate-limit-remaining"
+HEADER_RESET = "x-rate-limit-reset"
 
 
 @dataclass
@@ -30,6 +41,9 @@ class RateLimitConfig:
     strategy: RateLimitStrategy = RateLimitStrategy.TOKEN_BUCKET
     window_size: float = DEFAULT_WINDOW_SIZE
     endpoint_limits: Dict[str, float] = field(default_factory=dict)
+    pressure_relief_wait: float = DEFAULT_PRESSURE_RELIEF_WAIT
+    jitter_factor: float = DEFAULT_JITTER_FACTOR
+    adaptive: bool = True  # Whether to adapt to API rate limit headers
 
 class RateLimiter:
     """Advanced rate limiter implementation with multiple strategies.
@@ -51,13 +65,19 @@ class RateLimiter:
         strategy: RateLimitStrategy = RateLimitStrategy.TOKEN_BUCKET,
         window_size: float = DEFAULT_WINDOW_SIZE,  # window size in seconds (for window-based strategies)
         endpoint_limits: Optional[Dict[str, float]] = None,  # endpoint-specific rate limits
+        pressure_relief_wait: float = DEFAULT_PRESSURE_RELIEF_WAIT,  # wait time to relieve pressure
+        jitter_factor: float = DEFAULT_JITTER_FACTOR,  # jitter factor for distributed environments
+        adaptive: bool = True,  # whether to adapt to API rate limit headers
     ):
         self.config = RateLimitConfig(
             rate=rate,
             max_tokens=max_tokens,
             strategy=strategy,
             window_size=window_size,
-            endpoint_limits=endpoint_limits or {}
+            endpoint_limits=endpoint_limits or {},
+            pressure_relief_wait=pressure_relief_wait,
+            jitter_factor=jitter_factor,
+            adaptive=adaptive
         )
         
         # Token bucket state
@@ -74,7 +94,16 @@ class RateLimiter:
         self.request_count = 0
         self.endpoint_counts: Dict[str, int] = {}
         
-        logger.info(f"Initialized RateLimiter with strategy: {strategy.value}, rate: {rate}/s")
+        # Rate limit state from API headers
+        self.burst_limit = max_tokens
+        self.burst_remaining = max_tokens
+        self.burst_reset = 0
+        self.global_limit = int(rate * window_size)
+        self.global_remaining = self.global_limit
+        self.global_reset = 0
+        self.last_header_update = 0
+        
+        logger.info(f"Initialized RateLimiter with strategy: {strategy.value}, rate: {rate}/s, adaptive: {adaptive}")
     
     @property
     def rate(self) -> float:
@@ -151,10 +180,33 @@ class RateLimiter:
                     self.endpoint_counts[endpoint] = self.endpoint_counts.get(endpoint, 0) + 1
     
     def _acquire_token_bucket(self, endpoint: Optional[str] = None) -> None:
-        """Token bucket algorithm implementation."""
+        """Token bucket algorithm implementation with adaptive rate limiting based on API headers."""
         # Get endpoint-specific rate if available
         rate = self.endpoint_limits.get(endpoint, self.rate) if endpoint else self.rate
         
+        # Check if we should use adaptive rate limiting based on headers
+        if self.config.adaptive and self.burst_remaining == 0 and self.burst_reset > 0:
+            # We've hit the burst limit according to API headers
+            wait_time = self.burst_reset + self._add_jitter(self.burst_reset)
+            logger.warning(f"Burst limit reached. Slowing down for {wait_time} seconds.")
+            time.sleep(wait_time)
+            
+            # After waiting for the burst reset, adjust our rate to be more conservative
+            adjusted_rate = rate * 0.8  # 20% more conservative
+            adjusted_tokens = max(1, int(self.max_tokens * 0.5))  # 50% of max tokens
+            logger.info(f"Rate limiter adjusted: rate={adjusted_rate}/s, max_tokens={adjusted_tokens}")
+            
+            # Apply a short wait to relieve pressure
+            relief_wait = self.config.pressure_relief_wait + self._add_jitter(self.config.pressure_relief_wait)
+            logger.info(f"Short wait of {relief_wait} seconds to relieve pressure...")
+            time.sleep(relief_wait)
+            
+            # Reset tokens to allow one request
+            self.tokens = 1
+            self.last_update = time.monotonic()
+            return
+        
+        # Standard token bucket algorithm
         while self.tokens <= 0:
             # Calculate how long to wait for at least 1 token
             now = time.monotonic()
@@ -168,6 +220,7 @@ class RateLimiter:
             if self.tokens <= 0:
                 # Wait for approximately 1 token to be available
                 wait_time = max(MIN_WAIT_TIME, 1.0 / rate)
+                wait_time += self._add_jitter(wait_time)  # Add jitter to prevent thundering herd
                 logger.debug(f"Rate limit reached, waiting {wait_time:.2f}s for token")
                 time.sleep(wait_time)
         
@@ -297,3 +350,78 @@ class RateLimiter:
         self.config = config
         logger.info(f"Rate limiter configuration updated: strategy={config.strategy.value}, "
                    f"rate={config.rate}/s, max_tokens={config.max_tokens}")
+                   
+    def update_from_headers(self, headers: Dict[str, str]) -> None:
+        """Update rate limiter state based on API response headers.
+        
+        Args:
+            headers: API response headers containing rate limit information
+        """
+        if not self.config.adaptive or not headers:
+            return
+            
+        try:
+            # Parse burst limit headers
+            if HEADER_BURST_LIMIT in headers and HEADER_BURST_REMAINING in headers and HEADER_BURST_RESET in headers:
+                self.burst_limit = int(headers[HEADER_BURST_LIMIT])
+                self.burst_remaining = int(headers[HEADER_BURST_REMAINING])
+                self.burst_reset = int(headers[HEADER_BURST_RESET])
+                
+                # Log warning if burst limit is reached
+                if self.burst_remaining == 0:
+                    logger.warning(f"Rate limit exceeded. Headers:\n{self._format_headers(headers)}")
+            
+            # Parse global limit headers
+            if HEADER_LIMIT in headers and HEADER_REMAINING in headers:
+                self.global_limit = int(headers[HEADER_LIMIT])
+                self.global_remaining = int(headers[HEADER_REMAINING])
+                if HEADER_RESET in headers:
+                    self.global_reset = int(headers[HEADER_RESET])
+                
+            # Update timestamp
+            self.last_header_update = time.monotonic()
+            
+            # Adjust rate and tokens based on headers if burst limit is reached
+            if self.burst_remaining == 0 and self.burst_reset > 0:
+                # Calculate a more conservative rate based on remaining global limit
+                if self.global_limit > 0 and self.global_remaining > 0:
+                    # Use remaining capacity as a percentage of total
+                    remaining_ratio = self.global_remaining / self.global_limit
+                    # Adjust rate to be more conservative when approaching limits
+                    new_rate = self.rate * max(0.1, remaining_ratio)
+                    new_max_tokens = max(1, int(self.max_tokens * remaining_ratio))
+                    
+                    logger.info(f"Rate limiter adjusted: rate={new_rate:.6f}/s, max_tokens={new_max_tokens}")
+                    
+                    # Update configuration with new values
+                    self.rate = new_rate
+                    self.max_tokens = new_max_tokens
+        except (ValueError, KeyError) as e:
+            logger.error(f"Error parsing rate limit headers: {e}")
+    
+    def _format_headers(self, headers: Dict[str, str]) -> str:
+        """Format headers for logging.
+        
+        Args:
+            headers: Headers dictionary
+            
+        Returns:
+            Formatted string of headers
+        """
+        return '\n'.join([f"{k}: {v}" for k, v in headers.items() 
+                          if k.startswith('x-rate-limit')])
+    
+    def _add_jitter(self, value: float) -> float:
+        """Add jitter to a value to prevent thundering herd problems.
+        
+        Args:
+            value: Base value to add jitter to
+            
+        Returns:
+            Value with jitter added
+        """
+        if self.config.jitter_factor <= 0:
+            return 0
+        
+        jitter_amount = value * self.config.jitter_factor
+        return random.uniform(0, jitter_amount)

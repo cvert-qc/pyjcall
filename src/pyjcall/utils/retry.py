@@ -97,6 +97,7 @@ class RetryHandler:
         self,
         func: Callable[..., T],
         *args: Any,
+        rate_limiter=None,
         **kwargs: Any
     ) -> T:
         """Execute a function with retry logic.
@@ -104,6 +105,7 @@ class RetryHandler:
         Args:
             func: Function to execute
             *args: Positional arguments for the function
+            rate_limiter: Optional rate limiter instance to update from response headers
             **kwargs: Keyword arguments for the function
             
         Returns:
@@ -120,7 +122,13 @@ class RetryHandler:
                 if retry_count > 0:
                     self.wait_before_retry(retry_count)
                 
-                return func(*args, **kwargs)
+                result = func(*args, **kwargs)
+                
+                # If we have a rate limiter and the result has headers, update the rate limiter
+                if rate_limiter and hasattr(result, 'headers'):
+                    rate_limiter.update_from_headers(result.headers)
+                    
+                return result
                 
             except Exception as e:
                 last_exception = e
@@ -134,11 +142,27 @@ class RetryHandler:
                 if status_code is not None:
                     should_retry = self.should_retry(status_code, retry_count)
                 
+                # Check for rate limit headers in the exception
+                headers = getattr(e, 'headers', None)
+                if headers and rate_limiter:
+                    # Update rate limiter with headers from the exception
+                    rate_limiter.update_from_headers(headers)
+                    
+                    # If it's a rate limit error, we should always retry
+                    if status_code == 429:
+                        should_retry = retry_count <= self.config.max_retries
+                
                 if not should_retry:
                     logger.warning(f"Not retrying: {str(e)}")
                     raise
                 
-                logger.warning(f"Retrying due to error: {str(e)}")
+                # Extract and log rate limit headers if present in the exception
+                if headers and any(k.startswith('x-rate-limit') for k in headers.keys()):
+                    header_info = '\n'.join([f"{k}: {v}" for k, v in headers.items() 
+                                           if k.startswith('x-rate-limit')])
+                    logger.warning(f"Retrying due to error: {str(e)}. Headers: {{{header_info}}}")
+                else:
+                    logger.warning(f"Retrying due to error: {str(e)}")
         
         # If we've exhausted all retries, raise the last exception
         if last_exception:
