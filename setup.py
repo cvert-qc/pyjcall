@@ -8,6 +8,7 @@ setup(
     install_requires=[
         "aiohttp>=3.8.0",
         "pydantic>=2.0.0",
+        "limits>=2.0.0",
     ],
     extras_require={
         "dev": [
