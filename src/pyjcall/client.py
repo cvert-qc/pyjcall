@@ -180,6 +180,10 @@ class JustCallClient:
                     exception.headers = dict(response.headers)
                     raise exception
                 
+                # Mark successful request in the rate limiter
+                if hasattr(self, 'rate_limiter'):
+                    self.rate_limiter.mark_request_success()
+                    
                 if expect_json:
                     try:
                         return response.json()
@@ -364,10 +368,11 @@ class JustCallClient:
                 
                 # Only update retry configuration if we're hitting limits
                 if burst_remaining == 0:
-                    # Update retry handler configuration to be more aggressive
+                    # Update retry handler configuration to be more aggressive with buffer
+                    buffer_factor = 1.5  # Add 50% buffer to wait times
                     new_retry_config = RetryConfig(
                         max_retries=self.retry_handler.config.max_retries,
-                        retry_delay=max(self.retry_handler.config.retry_delay, burst_reset),
+                        retry_delay=max(self.retry_handler.config.retry_delay, burst_reset * buffer_factor),
                         backoff_factor=2.0,  # More aggressive backoff
                         retry_codes=self.retry_handler.config.retry_codes
                     )

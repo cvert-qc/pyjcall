@@ -23,6 +23,7 @@ DEFAULT_WINDOW_SIZE = 60.0  # Default window size in seconds
 MIN_WAIT_TIME = 0.1  # Minimum wait time in seconds
 DEFAULT_PRESSURE_RELIEF_WAIT = 0.5  # Default wait time to relieve pressure
 DEFAULT_JITTER_FACTOR = 0.1  # Default jitter factor (10%)
+DEFAULT_BUFFER_FACTOR = 1.5  # Default buffer factor for wait times (50% extra)
 
 # Rate limit header constants
 HEADER_BURST_LIMIT = "x-rate-limit-burst-limit"
@@ -43,6 +44,7 @@ class RateLimitConfig:
     endpoint_limits: Dict[str, float] = field(default_factory=dict)
     pressure_relief_wait: float = DEFAULT_PRESSURE_RELIEF_WAIT
     jitter_factor: float = DEFAULT_JITTER_FACTOR
+    buffer_factor: float = DEFAULT_BUFFER_FACTOR  # Buffer factor for wait times
     adaptive: bool = True  # Whether to adapt to API rate limit headers
 
 class RateLimiter:
@@ -67,6 +69,7 @@ class RateLimiter:
         endpoint_limits: Optional[Dict[str, float]] = None,  # endpoint-specific rate limits
         pressure_relief_wait: float = DEFAULT_PRESSURE_RELIEF_WAIT,  # wait time to relieve pressure
         jitter_factor: float = DEFAULT_JITTER_FACTOR,  # jitter factor for distributed environments
+        buffer_factor: float = DEFAULT_BUFFER_FACTOR,  # buffer factor for wait times
         adaptive: bool = True,  # whether to adapt to API rate limit headers
     ):
         self.config = RateLimitConfig(
@@ -77,6 +80,7 @@ class RateLimiter:
             endpoint_limits=endpoint_limits or {},
             pressure_relief_wait=pressure_relief_wait,
             jitter_factor=jitter_factor,
+            buffer_factor=buffer_factor,
             adaptive=adaptive
         )
         
@@ -102,6 +106,11 @@ class RateLimiter:
         self.global_remaining = self.global_limit
         self.global_reset = 0
         self.last_header_update = 0
+        
+        # Progressive backoff tracking
+        self.consecutive_rate_limit_errors = 0
+        self.last_successful_request = time.monotonic()
+        self.backoff_multiplier = 1.0
         
         logger.info(f"Initialized RateLimiter with strategy: {strategy.value}, rate: {rate}/s, adaptive: {adaptive}")
     
@@ -187,18 +196,35 @@ class RateLimiter:
         # Check if we should use adaptive rate limiting based on headers
         if self.config.adaptive and self.burst_remaining == 0 and self.burst_reset > 0:
             # We've hit the burst limit according to API headers
-            wait_time = self.burst_reset + self._add_jitter(self.burst_reset)
-            logger.warning(f"Burst limit reached. Slowing down for {wait_time} seconds.")
+            # Apply progressive backoff if we keep hitting rate limits
+            if self.consecutive_rate_limit_errors > 0:
+                # Increase backoff multiplier with each consecutive error
+                self.backoff_multiplier = min(10.0, 1.0 + (self.consecutive_rate_limit_errors * 0.5))
+                
+                # Calculate wait time with progressive backoff and buffer
+                base_wait_time = self.burst_reset * self.backoff_multiplier * self.config.buffer_factor
+                wait_time = base_wait_time + self._add_jitter(base_wait_time)
+                
+                logger.warning(f"Burst limit reached {self.consecutive_rate_limit_errors} times in a row. "
+                             f"Slowing down for {wait_time:.2f} seconds (backoff multiplier: {self.backoff_multiplier:.1f}x).")
+            else:
+                # Add buffer to wait time to be more generous
+                wait_time = self.burst_reset * self.config.buffer_factor + self._add_jitter(self.burst_reset)
+                logger.warning(f"Burst limit reached. Slowing down for {wait_time:.2f} seconds.")
+                
             time.sleep(wait_time)
             
             # After waiting for the burst reset, adjust our rate to be more conservative
-            adjusted_rate = rate * 0.8  # 20% more conservative
-            adjusted_tokens = max(1, int(self.max_tokens * 0.5))  # 50% of max tokens
+            # Make it progressively more conservative with consecutive errors
+            conservation_factor = 0.8 / (1.0 + (self.consecutive_rate_limit_errors * 0.1))
+            adjusted_rate = rate * conservation_factor
+            adjusted_tokens = max(1, int(self.max_tokens * (0.5 / (1.0 + self.consecutive_rate_limit_errors * 0.1))))
             logger.info(f"Rate limiter adjusted: rate={adjusted_rate}/s, max_tokens={adjusted_tokens}")
             
-            # Apply a short wait to relieve pressure
-            relief_wait = self.config.pressure_relief_wait + self._add_jitter(self.config.pressure_relief_wait)
-            logger.info(f"Short wait of {relief_wait} seconds to relieve pressure...")
+            # Apply a short wait to relieve pressure - longer with consecutive errors
+            relief_factor = 1.0 + (self.consecutive_rate_limit_errors * 0.2)
+            relief_wait = (self.config.pressure_relief_wait * relief_factor) + self._add_jitter(self.config.pressure_relief_wait)
+            logger.info(f"Short wait of {relief_wait:.2f} seconds to relieve pressure...")
             time.sleep(relief_wait)
             
             # Reset tokens to allow one request
@@ -361,15 +387,31 @@ class RateLimiter:
             return
             
         try:
+            # Check if this is a successful response (no rate limit error)
+            # We determine this by checking if burst_remaining > 0 or if there are no rate limit headers
+            is_rate_limited = False
+            
             # Parse burst limit headers
             if HEADER_BURST_LIMIT in headers and HEADER_BURST_REMAINING in headers and HEADER_BURST_RESET in headers:
-                self.burst_limit = int(headers[HEADER_BURST_LIMIT])
-                self.burst_remaining = int(headers[HEADER_BURST_REMAINING])
-                self.burst_reset = int(headers[HEADER_BURST_RESET])
+                new_burst_limit = int(headers[HEADER_BURST_LIMIT])
+                new_burst_remaining = int(headers[HEADER_BURST_REMAINING])
+                new_burst_reset = int(headers[HEADER_BURST_RESET])
                 
-                # Log warning if burst limit is reached
-                if self.burst_remaining == 0:
+                # Detect if we're rate limited
+                if new_burst_remaining == 0:
+                    is_rate_limited = True
+                    self.consecutive_rate_limit_errors += 1
                     logger.warning(f"Rate limit exceeded. Headers:\n{self._format_headers(headers)}")
+                else:
+                    # If we have remaining capacity, reset consecutive errors
+                    self.consecutive_rate_limit_errors = 0
+                    self.backoff_multiplier = 1.0
+                    self.last_successful_request = time.monotonic()
+                
+                # Update our state
+                self.burst_limit = new_burst_limit
+                self.burst_remaining = new_burst_remaining
+                self.burst_reset = new_burst_reset
             
             # Parse global limit headers
             if HEADER_LIMIT in headers and HEADER_REMAINING in headers:
@@ -381,15 +423,24 @@ class RateLimiter:
             # Update timestamp
             self.last_header_update = time.monotonic()
             
+            # If we're not rate limited, we don't need to adjust anything
+            if not is_rate_limited:
+                return
+                
             # Adjust rate and tokens based on headers if burst limit is reached
             if self.burst_remaining == 0 and self.burst_reset > 0:
                 # Calculate a more conservative rate based on remaining global limit
                 if self.global_limit > 0 and self.global_remaining > 0:
                     # Use remaining capacity as a percentage of total
                     remaining_ratio = self.global_remaining / self.global_limit
+                    
+                    # Apply progressive backoff based on consecutive errors
+                    backoff_factor = 1.0 + (self.consecutive_rate_limit_errors * 0.2)
+                    effective_ratio = max(0.1, remaining_ratio / backoff_factor)
+                    
                     # Adjust rate to be more conservative when approaching limits
-                    new_rate = self.rate * max(0.1, remaining_ratio)
-                    new_max_tokens = max(1, int(self.max_tokens * remaining_ratio))
+                    new_rate = self.rate * effective_ratio
+                    new_max_tokens = max(1, int(self.max_tokens * effective_ratio))
                     
                     logger.info(f"Rate limiter adjusted: rate={new_rate:.6f}/s, max_tokens={new_max_tokens}")
                     
@@ -398,6 +449,15 @@ class RateLimiter:
                     self.max_tokens = new_max_tokens
         except (ValueError, KeyError) as e:
             logger.error(f"Error parsing rate limit headers: {e}")
+            
+    def mark_request_success(self) -> None:
+        """Mark a request as successful, resetting the consecutive error counter."""
+        if self.consecutive_rate_limit_errors > 0:
+            logger.info(f"Request succeeded after {self.consecutive_rate_limit_errors} consecutive rate limit errors")
+            
+        self.consecutive_rate_limit_errors = 0
+        self.backoff_multiplier = 1.0
+        self.last_successful_request = time.monotonic()
     
     def _format_headers(self, headers: Dict[str, str]) -> str:
         """Format headers for logging.

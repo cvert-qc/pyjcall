@@ -127,6 +127,8 @@ class RetryHandler:
                 # If we have a rate limiter and the result has headers, update the rate limiter
                 if rate_limiter and hasattr(result, 'headers'):
                     rate_limiter.update_from_headers(result.headers)
+                    # Mark the request as successful to reset consecutive error counter
+                    rate_limiter.mark_request_success()
                     
                 return result
                 
