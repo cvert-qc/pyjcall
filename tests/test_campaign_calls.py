@@ -1,13 +1,13 @@
 import pytest
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from pyjcall import JustCallClient
 from pyjcall.utils.exceptions import JustCallException
 
 @pytest.mark.asyncio
 async def test_list_campaign_calls(client, mock_api):
-    """Test listing calls from JustCall Sales Dialer"""
-    mock_api.post(
-        "https://api.justcall.io/v1/autodialer/calls/list",
+    """Test listing calls from JustCall Sales Dialer using v2 API"""
+    mock_api.get(
+        "https://api.justcall.io/v2.1/sales_dialer/calls",
         payload={
             "status": "success",
             "count": 1,
@@ -44,9 +44,9 @@ async def test_list_campaign_calls(client, mock_api):
 
 @pytest.mark.asyncio
 async def test_list_campaign_calls_with_date_range(client, mock_api):
-    """Test listing calls with date range"""
-    mock_api.post(
-        "https://api.justcall.io/v1/autodialer/calls/list",
+    """Test listing calls with date range using v2 API"""
+    mock_api.get(
+        "https://api.justcall.io/v2.1/sales_dialer/calls",
         payload={
             "status": "success",
             "count": 1,
@@ -65,11 +65,14 @@ async def test_list_campaign_calls_with_date_range(client, mock_api):
         }
     )
     
-    # Convert date objects to strings in the format 'YYYY-MM-DD'
+    # Use datetime objects for the v2 API
+    from_dt = datetime(2020, 12, 14, 0, 0, 0)
+    to_dt = datetime(2020, 12, 15, 23, 59, 59)
+    
     response = await client.CampaignCalls.list(
         campaign_id="1749984",
-        start_date="2020-12-14",
-        end_date="2020-12-15"
+        from_datetime=from_dt,
+        to_datetime=to_dt
     )
     assert response["status"] == "success"
     assert response["count"] == 1
@@ -78,9 +81,9 @@ async def test_list_campaign_calls_with_date_range(client, mock_api):
 
 @pytest.mark.asyncio
 async def test_list_all_campaign_calls(client, mock_api):
-    """Test listing calls from all campaigns"""
-    mock_api.post(
-        "https://api.justcall.io/v1/autodialer/calls/list",
+    """Test listing calls from all campaigns using v2 API"""
+    mock_api.get(
+        "https://api.justcall.io/v2.1/sales_dialer/calls",
         payload={
             "status": "success",
             "count": 2,
@@ -114,9 +117,9 @@ async def test_list_all_campaign_calls(client, mock_api):
 
 @pytest.mark.asyncio
 async def test_list_campaign_calls_with_pagination(client, mock_api):
-    """Test listing calls with pagination"""
-    mock_api.post(
-        "https://api.justcall.io/v1/autodialer/calls/list",
+    """Test listing calls with pagination using v2 API"""
+    mock_api.get(
+        "https://api.justcall.io/v2.1/sales_dialer/calls",
         payload={
             "status": "success",
             "count": 1,
@@ -132,8 +135,8 @@ async def test_list_campaign_calls_with_pagination(client, mock_api):
     
     response = await client.CampaignCalls.list(
         campaign_id="1749984",
-        page="2",
-        per_page="10"
+        page=1,  # v2 API uses 0-based pagination, so page 1 is the second page
+        per_page=10
     )
     assert response["status"] == "success"
     assert response["count"] == 1
@@ -142,10 +145,10 @@ async def test_list_campaign_calls_with_pagination(client, mock_api):
 
 @pytest.mark.asyncio
 async def test_iter_all_campaign_calls(client, mock_api):
-    """Test iterating through all campaign calls"""
+    """Test iterating through all campaign calls using v2 API"""
     # First page
-    mock_api.post(
-        "https://api.justcall.io/v1/autodialer/calls/list",
+    mock_api.get(
+        "https://api.justcall.io/v2.1/sales_dialer/calls",
         payload={
             "status": "success",
             "count": 2,
@@ -158,8 +161,8 @@ async def test_iter_all_campaign_calls(client, mock_api):
     )
     
     # Second page
-    mock_api.post(
-        "https://api.justcall.io/v1/autodialer/calls/list",
+    mock_api.get(
+        "https://api.justcall.io/v2.1/sales_dialer/calls",
         payload={
             "status": "success",
             "count": 1,
@@ -171,8 +174,8 @@ async def test_iter_all_campaign_calls(client, mock_api):
     )
     
     # Empty third page to end pagination
-    mock_api.post(
-        "https://api.justcall.io/v1/autodialer/calls/list",
+    mock_api.get(
+        "https://api.justcall.io/v2.1/sales_dialer/calls",
         payload={
             "status": "success",
             "count": 0,
@@ -193,9 +196,9 @@ async def test_iter_all_campaign_calls(client, mock_api):
 
 @pytest.mark.asyncio
 async def test_iter_all_campaign_calls_with_max_items(client, mock_api):
-    """Test iterating through campaign calls with max_items limit"""
-    mock_api.post(
-        "https://api.justcall.io/v1/autodialer/calls/list",
+    """Test iterating through campaign calls with max_items limit using v2 API"""
+    mock_api.get(
+        "https://api.justcall.io/v2.1/sales_dialer/calls",
         payload={
             "status": "success",
             "count": 3,

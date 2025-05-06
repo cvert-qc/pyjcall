@@ -394,8 +394,8 @@ async def test_campaign_contacts(client):
         print("No campaigns found to list contacts")
 
 async def test_campaign_calls(client):
-    """Test Campaign Calls API endpoints (read-only)"""
-    print("\n=== CAMPAIGN CALLS API ===")
+    """Test Campaign Calls API endpoints (read-only) using v2 API"""
+    print("\n=== CAMPAIGN CALLS API (v2) ===")
     
     # List campaign calls
     print("\nListing campaigns to find one for calls...")
@@ -407,17 +407,18 @@ async def test_campaign_calls(client):
         
         try:
             # Get calls for a specific campaign
-            from datetime import datetime, timedelta, date
+            from datetime import datetime, timedelta
             today = datetime.now()
             one_month_ago = today - timedelta(days=30)
-            # Use date objects directly instead of string formatting
-            start_date = one_month_ago.date()
-            end_date = today.date()
+            
+            # Use datetime objects for the v2 API
+            from_datetime = one_month_ago
+            to_datetime = today
             
             calls = await client.CampaignCalls.list(
                 campaign_id=str(campaign_id),
-                start_date=start_date,
-                end_date=end_date
+                from_datetime=from_datetime,
+                to_datetime=to_datetime
             )
             print(f"Retrieved {len(calls.get('data', []))} calls out of {calls.get('total', 0)} total")
             
@@ -427,13 +428,27 @@ async def test_campaign_calls(client):
                 for i, call in enumerate(calls['data'][:3]):  # Show first 3
                     print(f"Call {i+1}: ID={call.get('call_id')}, From={call.get('from')}, To={call.get('to')}, Duration={call.get('duration')}")
                 
+                # Test additional v2 API parameters
+                print("\nTesting v2 API parameters (call_type filter)...")
+                try:
+                    filtered_calls = await client.CampaignCalls.list(
+                        campaign_id=str(campaign_id),
+                        from_datetime=from_datetime,
+                        to_datetime=to_datetime,
+                        call_type="answered",
+                        per_page=20
+                    )
+                    print(f"Retrieved {len(filtered_calls.get('data', []))} answered calls")
+                except Exception as e:
+                    print(f"Error filtering calls: {e}")
+                
                 # Test bulk iteration
                 print("\nTesting bulk iteration of campaign calls...")
                 call_count = 0
                 async for call in client.CampaignCalls.iter_all(
                     campaign_id=str(campaign_id),
-                    start_date=start_date,
-                    end_date=end_date,
+                    from_datetime=from_datetime,
+                    to_datetime=to_datetime,
                     max_items=100
                 ):
                     call_count += 1
@@ -451,16 +466,21 @@ async def test_campaign_calls(client):
     # List calls from all campaigns
     print("\nListing calls from all campaigns in the last 7 days...")
     try:
-        from datetime import datetime, timedelta, date
+        from datetime import datetime, timedelta
         today = datetime.now()
         one_week_ago = today - timedelta(days=7)
-        # Use date objects directly instead of string formatting
-        start_date = one_week_ago.date()
-        end_date = today.date()
         
+        # Use datetime objects for the v2 API
+        from_datetime = one_week_ago
+        to_datetime = today
+        
+        # Test AI data retrieval
         all_calls = await client.CampaignCalls.list(
-            start_date=start_date,
-            end_date=end_date
+            from_datetime=from_datetime,
+            to_datetime=to_datetime,
+            fetch_ai_data=True,  # New v2 API parameter
+            sort="id",           # New v2 API parameter
+            order="desc"         # New v2 API parameter format
         )
         print(f"Retrieved {len(all_calls.get('data', []))} calls from all campaigns")
     except Exception as e:
