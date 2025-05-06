@@ -1,11 +1,11 @@
-from typing import Optional, Dict, Any, AsyncIterator
+from typing import Optional, Dict, Any, Iterator
 from ..models.campaigns import ListCampaignsParams, CreateCampaignParams
 
 class Campaigns:
     def __init__(self, client):
         self.client = client
 
-    async def list(
+    def list(
         self,
         page: Optional[str] = None,
         per_page: Optional[str] = None
@@ -25,13 +25,13 @@ class Campaigns:
             per_page=per_page
         )
 
-        return await self.client._make_request(
+        return self.client._make_request(
             method="POST",
             endpoint="/v1/autodialer/campaigns/list",
             json=params.model_dump(exclude_none=True)
         )
 
-    async def create(
+    def create(
         self,
         name: str,
         type: str,
@@ -57,16 +57,16 @@ class Campaigns:
             country_code=country_code
         )
 
-        return await self.client._make_request(
+        return self.client._make_request(
             method="POST",
             endpoint="/v1/autodialer/campaigns/create",
             json=params.model_dump(exclude_none=True)
         )
 
-    async def iter_all(
+    def iter_all(
         self,
         max_items: Optional[int] = None
-    ) -> AsyncIterator[Dict[str, Any]]:
+    ) -> Iterator[Dict[str, Any]]:
         """
         Iterate through all campaigns.
         Automatically handles pagination.
@@ -81,7 +81,7 @@ class Campaigns:
             per_page="100"  # Use maximum allowed per_page for efficiency
         ).model_dump(exclude_none=True)
 
-        async for item in self.client._paginate(
+        for item in self.client._paginate(
             method="POST",
             endpoint="/v1/autodialer/campaigns/list",
             json=json_data,

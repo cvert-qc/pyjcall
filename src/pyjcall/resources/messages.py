@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional, AsyncIterator
+from typing import Dict, Any, Optional, Iterator
 from datetime import datetime
 from ..models.messages import ListMessagesParams, SendMessageParams, CheckReplyParams, SendNewMessageParams
 from ..utils.datetime import to_api_datetime, convert_dict_datetimes
@@ -7,7 +7,7 @@ class Messages:
     def __init__(self, client):
         self.client = client
 
-    async def list(
+    def list(
         self,
         from_datetime: Optional[datetime] = None,
         to_datetime: Optional[datetime] = None,
@@ -54,7 +54,7 @@ class Messages:
             order=order
         )
 
-        response = await self.client._make_request(
+        response = self.client._make_request(
             method="GET",
             endpoint="/v2.1/texts",
             params=params.model_dump(exclude_none=True)
@@ -63,7 +63,7 @@ class Messages:
         # Convert datetime strings in response to Python datetime objects
         return convert_dict_datetimes(response)
 
-    async def send(
+    def send(
         self,
         to: str,
         from_number: str,
@@ -89,13 +89,13 @@ class Messages:
             media_url=media_url
         )
 
-        return await self.client._make_request(
+        return self.client._make_request(
             method="POST",
             endpoint="/v2.1/texts",
             json=params.model_dump(exclude_none=True)
         )
 
-    async def get(self, message_id: int) -> Dict[str, Any]:
+    def get(self, message_id: int) -> Dict[str, Any]:
         """
         Get details of a specific SMS message by ID.
         
@@ -105,12 +105,12 @@ class Messages:
         Returns:
             Dict[str, Any]: SMS message details
         """
-        return await self.client._make_request(
+        return self.client._make_request(
             method="GET",
             endpoint=f"/v2.1/texts/{message_id}"
         )
 
-    async def check_reply(
+    def check_reply(
         self,
         contact_number: str,
         justcall_number: Optional[str] = None
@@ -130,13 +130,13 @@ class Messages:
             justcall_number=justcall_number
         )
 
-        return await self.client._make_request(
+        return self.client._make_request(
             method="POST",
             endpoint="/v2.1/texts/checkreply",
             json=params.model_dump(exclude_none=True)
         )
 
-    async def send_new(
+    def send_new(
         self,
         justcall_number: str,
         contact_number: str,
@@ -165,13 +165,13 @@ class Messages:
             restrict_once=restrict_once
         )
 
-        return await self.client._make_request(
+        return self.client._make_request(
             method="POST",
             endpoint="/v2.1/texts/new",
             json=params.model_dump(exclude_none=True)
         )
 
-    async def iter_all(
+    def iter_all(
         self,
         from_datetime: Optional[datetime] = None,
         to_datetime: Optional[datetime] = None,
@@ -182,7 +182,7 @@ class Messages:
         sort: str = "id",
         order: str = "desc",
         max_items: Optional[int] = None
-    ) -> AsyncIterator[Dict[str, Any]]:
+    ) -> Iterator[Dict[str, Any]]:
         """
         Iterate through all messages matching the filter criteria.
         Automatically handles pagination.
@@ -208,7 +208,7 @@ class Messages:
 
         json_data = params.model_dump(exclude_none=True)
 
-        async for item in self.client._paginate(
+        for item in self.client._paginate(
             method="GET",
             endpoint="/v2.1/texts",
             params=json_data,

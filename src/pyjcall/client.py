@@ -1,6 +1,7 @@
-from typing import Dict, Any, Union, AsyncIterator, Optional, Tuple
-import aiohttp
-import asyncio
+from typing import Dict, Any, Union, Iterator, Optional, Tuple
+import requests
+import time
+import threading
 import logging
 from datetime import date, datetime
 from .resources.calls import Calls
@@ -79,24 +80,23 @@ class JustCallClient:
         
         logger.info(f"Initialized JustCallClient with rate limiting and retry mechanisms")
 
-    async def __aenter__(self):
-        """Create aiohttp session when entering context manager."""
-        self.session = aiohttp.ClientSession(
-            headers={
-                "Authorization": f"{self.api_key}:{self.api_secret}",
-                "Accept": "application/json",
-                "Content-Type": "application/json"
-            }
-        )
+    def __enter__(self):
+        """Create requests session when entering context manager."""
+        self.session = requests.Session()
+        self.session.headers.update({
+            "Authorization": f"{self.api_key}:{self.api_secret}",
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+        })
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Close aiohttp session when exiting context manager."""
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Close requests session when exiting context manager."""
         if self.session:
-            await self.session.close()
+            self.session.close()
             self.session = None
 
-    async def _make_request(
+    def _make_request(
         self, 
         method: str, 
         endpoint: str, 
@@ -120,82 +120,81 @@ class JustCallClient:
             JustCallException: If the API request fails after all retries are exhausted
         """
         # Define the actual request function to be used with retry mechanism
-        async def _do_request() -> Union[Dict[str, Any], bytes]:
+        def _do_request() -> Union[Dict[str, Any], bytes]:
             if not self.session:
-                self.session = aiohttp.ClientSession(
-                    headers={
-                        "Authorization": f"{self.api_key}:{self.api_secret}",
-                        "Accept": "application/json",
-                        "Content-Type": "application/json"
-                    }
-                )
+                self.session = requests.Session()
+                self.session.headers.update({
+                    "Authorization": f"{self.api_key}:{self.api_secret}",
+                    "Accept": "application/json",
+                    "Content-Type": "application/json"
+                })
 
             # Convert parameter values to appropriate string formats
             request_params = self._prepare_request_params(params) if params else None
 
             # Use the endpoint for rate limiting
-            await self.rate_limiter.acquire(endpoint)
+            self.rate_limiter.acquire(endpoint)
             
             try:
                 url = f"{self.base_url}{endpoint}"
                 logger.debug(f"Making {method} request to {url}")
                 
-                async with self.session.request(method, url, params=request_params, json=json) as response:
-                    # Always update rate limit info from headers if available
-                    self._update_rate_limits_from_headers(response.headers)
+                response = self.session.request(method, url, params=request_params, json=json)
+                
+                # Always update rate limit info from headers if available
+                self._update_rate_limits_from_headers(response.headers)
+                
+                if response.status_code >= 400:
+                    # Try to parse error response as JSON
+                    try:
+                        error_data = response.json()
+                        error_message = error_data.get('message', 'Unknown error')
+                    except Exception:
+                        # If JSON parsing fails, use the text or status
+                        error_message = response.text or f"HTTP {response.status_code}"
                     
-                    if response.status >= 400:
-                        # Try to parse error response as JSON
-                        try:
-                            error_data = await response.json()
-                            error_message = error_data.get('message', 'Unknown error')
-                        except Exception:
-                            # If JSON parsing fails, use the text or status
-                            error_message = await response.text() or f"HTTP {response.status}"
+                    # Check if it's a rate limit error
+                    if 'rate limit' in error_message.lower() or response.status_code == 429:
+                        # Extract and log rate limit headers
+                        rate_limit_headers = {
+                            k: v for k, v in response.headers.items() 
+                            if 'rate' in k.lower() or 'limit' in k.lower() or 'remaining' in k.lower()
+                        }
                         
-                        # Check if it's a rate limit error
-                        if 'rate limit' in error_message.lower() or response.status == 429:
-                            # Extract and log rate limit headers
-                            rate_limit_headers = {
-                                k: v for k, v in response.headers.items() 
-                                if 'rate' in k.lower() or 'limit' in k.lower() or 'remaining' in k.lower()
-                            }
-                            
-                            # Log headers to help with debugging
-                            headers_str = '\n'.join([f"{k}: {v}" for k, v in rate_limit_headers.items()])
-                            logger.warning(f"Rate limit exceeded. Headers:\n{headers_str}")
-                            
-                            # Adjust rate limiter based on headers
-                            await self._adjust_rate_limiter_from_headers(rate_limit_headers)
-                            
-                            # Include headers in the exception message
-                            error_message = f"{error_message} Headers: {rate_limit_headers}"
+                        # Log headers to help with debugging
+                        headers_str = '\n'.join([f"{k}: {v}" for k, v in rate_limit_headers.items()])
+                        logger.warning(f"Rate limit exceeded. Headers:\n{headers_str}")
                         
-                        exception = JustCallException(
-                            status_code=response.status,
-                            message=f"API Error: {error_message}"
+                        # Adjust rate limiter based on headers
+                        self._adjust_rate_limiter_from_headers(rate_limit_headers)
+                        
+                        # Include headers in the exception message
+                        error_message = f"{error_message} Headers: {rate_limit_headers}"
+                    
+                    exception = JustCallException(
+                        status_code=response.status_code,
+                        message=f"API Error: {error_message}"
+                    )
+                    
+                    # Add the response headers to the exception for retry logic
+                    exception.headers = dict(response.headers)
+                    raise exception
+                
+                if expect_json:
+                    try:
+                        return response.json()
+                    except ValueError:
+                        # Handle case where response is not JSON despite expect_json=True
+                        content = response.content
+                        logger.warning(f"Expected JSON response but got non-JSON content: {content[:100]}...")
+                        raise JustCallException(
+                            status_code=response.status_code,
+                            message="Invalid JSON response from API"
                         )
-                        
-                        # Add the response headers to the exception for retry logic
-                        exception.headers = dict(response.headers)
-                        raise exception
-                    
-                    if expect_json:
-                        try:
-                            data = await response.json()
-                            return data
-                        except aiohttp.ContentTypeError:
-                            # Handle case where response is not JSON despite expect_json=True
-                            content = await response.read()
-                            logger.warning(f"Expected JSON response but got non-JSON content: {content[:100]}...")
-                            raise JustCallException(
-                                status_code=response.status,
-                                message="Invalid JSON response from API"
-                            )
-                    else:
-                        return await response.read()
-                    
-            except aiohttp.ClientError as e:
+                else:
+                    return response.content
+                
+            except requests.RequestException as e:
                 logger.error(f"HTTP client error: {str(e)}")
                 raise JustCallException(
                     status_code=500,
@@ -204,7 +203,7 @@ class JustCallClient:
         
         # Use the retry handler to execute the request with retry logic
         try:
-            return await self.retry_handler.execute_with_retry(_do_request)
+            return self.retry_handler.execute_with_retry(_do_request)
         except JustCallException as e:
             # Re-raise JustCallException directly
             raise
@@ -216,7 +215,7 @@ class JustCallClient:
                 message=f"Unexpected error: {str(e)}"
             )
 
-    async def _paginate(
+    def _paginate(
         self,
         method: str,
         endpoint: str,
@@ -227,7 +226,7 @@ class JustCallClient:
         items_key: str = "data",
         max_items: int = None,
         start_page: int = 0
-    ) -> AsyncIterator[Dict[str, Any]]:
+    ) -> Iterator[Dict[str, Any]]:
         """Helper method to handle pagination across all resources.
         
         Args:
@@ -257,7 +256,7 @@ class JustCallClient:
                 json = self._prepare_request_params(json)
             
             # Make the request
-            response = await self._make_request(
+            response = self._make_request(
                 method=method,
                 endpoint=endpoint,
                 params=params,
@@ -346,7 +345,7 @@ class JustCallClient:
         except (ValueError, KeyError) as e:
             logger.warning(f"Error parsing rate limit headers: {e}")
     
-    async def _adjust_rate_limiter_from_headers(self, headers: Dict[str, str]) -> None:
+    def _adjust_rate_limiter_from_headers(self, headers: Dict[str, str]) -> None:
         """Adjust rate limiter settings based on rate limit headers.
         
         Args:
@@ -381,7 +380,7 @@ class JustCallClient:
                     # Add a short sleep to give immediate relief but not block the job
                     short_wait = min(MAX_SHORT_WAIT, burst_reset * SHORT_WAIT_FACTOR)
                     logger.info(f"Short wait of {short_wait:.1f} seconds to relieve pressure...")
-                    await asyncio.sleep(short_wait)
+                    time.sleep(short_wait)
                     
                     # Update retry handler configuration
                     new_retry_config = RetryConfig(

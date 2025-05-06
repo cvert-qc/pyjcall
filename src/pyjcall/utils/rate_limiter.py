@@ -1,8 +1,8 @@
-import asyncio
 import time
+import threading
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Optional, Dict, List, Callable, Awaitable, Any, Deque
+from typing import Optional, Dict, List, Callable, Any, Deque
 from enum import Enum
 import logging
 
@@ -68,7 +68,7 @@ class RateLimiter:
         self.request_timestamps: Dict[str, Deque[float]] = {}  # endpoint -> deque of timestamps
         
         # Concurrency control
-        self._lock = asyncio.Lock()
+        self._lock = threading.Lock()
         
         # Request tracking
         self.request_count = 0
@@ -121,23 +121,23 @@ class RateLimiter:
         self.config.endpoint_limits = value
         logger.debug(f"Endpoint limits updated: {value}")
         
-    async def acquire(self, endpoint: Optional[str] = None) -> None:
+    def acquire(self, endpoint: Optional[str] = None) -> None:
         """Acquire permission to make a request, waiting if necessary.
         
         Args:
             endpoint: Optional API endpoint being accessed, for endpoint-specific rate limiting
         """
-        async with self._lock:
+        with self._lock:
             try:
                 if self.strategy == RateLimitStrategy.TOKEN_BUCKET:
-                    await self._acquire_token_bucket(endpoint)
+                    self._acquire_token_bucket(endpoint)
                 elif self.strategy == RateLimitStrategy.FIXED_WINDOW:
-                    await self._acquire_fixed_window(endpoint)
+                    self._acquire_fixed_window(endpoint)
                 elif self.strategy == RateLimitStrategy.SLIDING_WINDOW:
-                    await self._acquire_sliding_window(endpoint)
+                    self._acquire_sliding_window(endpoint)
                 else:
                     logger.warning(f"Unknown rate limiting strategy: {self.strategy}. Using token bucket.")
-                    await self._acquire_token_bucket(endpoint)
+                    self._acquire_token_bucket(endpoint)
                 
                 # Track request for metrics
                 self.request_count += 1
@@ -150,7 +150,7 @@ class RateLimiter:
                 if endpoint:
                     self.endpoint_counts[endpoint] = self.endpoint_counts.get(endpoint, 0) + 1
     
-    async def _acquire_token_bucket(self, endpoint: Optional[str] = None) -> None:
+    def _acquire_token_bucket(self, endpoint: Optional[str] = None) -> None:
         """Token bucket algorithm implementation."""
         # Get endpoint-specific rate if available
         rate = self.endpoint_limits.get(endpoint, self.rate) if endpoint else self.rate
@@ -169,12 +169,12 @@ class RateLimiter:
                 # Wait for approximately 1 token to be available
                 wait_time = max(MIN_WAIT_TIME, 1.0 / rate)
                 logger.debug(f"Rate limit reached, waiting {wait_time:.2f}s for token")
-                await asyncio.sleep(wait_time)
+                time.sleep(wait_time)
         
         self.tokens -= 1
         self.last_update = time.monotonic()
     
-    async def _acquire_fixed_window(self, endpoint: Optional[str] = None) -> None:
+    def _acquire_fixed_window(self, endpoint: Optional[str] = None) -> None:
         """Fixed window rate limiting implementation."""
         now = time.monotonic()
         window_start = now - self.window_size
@@ -197,7 +197,7 @@ class RateLimiter:
             # Calculate time until a slot opens up in the next window
             wait_time = max(MIN_WAIT_TIME, self.window_size - (now - window_start))
             logger.debug(f"Fixed window rate limit reached for {key}, waiting {wait_time:.2f}s")
-            await asyncio.sleep(wait_time)
+            time.sleep(wait_time)
             
             # Update time references
             now = time.monotonic()
@@ -210,7 +210,7 @@ class RateLimiter:
         # Record this request
         self.request_timestamps[key].append(now)
     
-    async def _acquire_sliding_window(self, endpoint: Optional[str] = None) -> None:
+    def _acquire_sliding_window(self, endpoint: Optional[str] = None) -> None:
         """Sliding window rate limiting implementation."""
         now = time.monotonic()
         key = endpoint or "global"
@@ -237,7 +237,7 @@ class RateLimiter:
             oldest = self.request_timestamps[key][0]  # First item in deque is the oldest
             wait_time = max(MIN_WAIT_TIME, oldest + self.window_size - now)
             logger.debug(f"Sliding window rate limit reached for {key}, waiting {wait_time:.2f}s")
-            await asyncio.sleep(wait_time)
+            time.sleep(wait_time)
             
             # Update time and clean up expired timestamps
             now = time.monotonic()
@@ -270,20 +270,20 @@ class RateLimiter:
             
         return metrics
     
-    async def with_rate_limit(self, func: Callable[..., Awaitable], endpoint: Optional[str] = None, *args, **kwargs) -> Any:
+    def with_rate_limit(self, func: Callable, endpoint: Optional[str] = None, *args, **kwargs) -> Any:
         """Decorator-like method to execute a function with rate limiting.
         
         Args:
-            func: Async function to execute
+            func: Function to execute
             endpoint: Optional endpoint identifier for endpoint-specific rate limiting
             *args, **kwargs: Arguments to pass to the function
             
         Returns:
             The result of the function call
         """
-        await self.acquire(endpoint)
+        self.acquire(endpoint)
         try:
-            return await func(*args, **kwargs)
+            return func(*args, **kwargs)
         except Exception as e:
             logger.error(f"Error executing rate-limited function: {e}")
             raise

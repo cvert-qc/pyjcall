@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any, AsyncIterator, List
+from typing import Optional, Dict, Any, Iterator, List
 from datetime import datetime
 from ..models.calls import ListCallsParams, UpdateCallParams
 from ..utils.datetime import to_api_datetime, convert_dict_datetimes
@@ -7,7 +7,7 @@ class Calls:
     def __init__(self, client):
         self.client = client
 
-    async def list(
+    def list(
         self,
         fetch_queue_data: bool = False,
         fetch_ai_data: bool = False,
@@ -49,7 +49,7 @@ class Calls:
             last_call_id_fetched=last_call_id_fetched
         )
 
-        response = await self.client._make_request(
+        response = self.client._make_request(
             method="GET",
             endpoint="/v2.1/calls",
             params=params.model_dump(exclude_none=True)
@@ -58,7 +58,7 @@ class Calls:
         # Convert datetime strings in response to Python datetime objects
         return convert_dict_datetimes(response)
 
-    async def get(
+    def get(
         self,
         call_id: int,
         fetch_queue_data: bool = False,
@@ -80,13 +80,13 @@ class Calls:
             "fetch_ai_data": fetch_ai_data
         }
 
-        return await self.client._make_request(
+        return self.client._make_request(
             method="GET",
             endpoint=f"/v2.1/calls/{call_id}",
             params=params
         )
 
-    async def update(
+    def update(
         self,
         call_id: int,
         notes: Optional[str] = None,
@@ -111,13 +111,13 @@ class Calls:
             rating=rating
         )
 
-        return await self.client._make_request(
+        return self.client._make_request(
             method="PUT",
             endpoint=f"/v2.1/calls/{call_id}",
             json=params.model_dump(exclude_none=True)
         )
 
-    async def get_journey(
+    def get_journey(
         self,
         call_id: int
     ) -> Dict[str, Any]:
@@ -130,12 +130,12 @@ class Calls:
         Returns:
             Dict[str, Any]: Call journey details
         """
-        return await self.client._make_request(
+        return self.client._make_request(
             method="GET",
             endpoint=f"/v2.1/calls/{call_id}/journey"
         )
 
-    async def get_voice_agent_data(
+    def get_voice_agent_data(
         self,
         call_id: int
     ) -> Dict[str, Any]:
@@ -148,12 +148,12 @@ class Calls:
         Returns:
             Dict[str, Any]: Voice agent data for the call
         """
-        return await self.client._make_request(
+        return self.client._make_request(
             method="GET",
             endpoint=f"/v2.1/calls/{call_id}/voice-agent"
         )
 
-    async def download_recording(
+    def download_recording(
         self,
         call_id: int
     ) -> bytes:
@@ -169,13 +169,13 @@ class Calls:
         Raises:
             JustCallException: If the recording doesn't exist or other API errors
         """
-        return await self.client._make_request(
+        return self.client._make_request(
             method="GET",
             endpoint=f"/v2.1/calls/{call_id}/recording/download",
             expect_json=False  # We expect binary data, not JSON
         )
 
-    async def iter_all(
+    def iter_all(
         self,
         fetch_queue_data: bool = False,
         fetch_ai_data: bool = False,
@@ -191,7 +191,7 @@ class Calls:
         sort: str = "id",
         order: str = "desc",
         max_items: Optional[int] = None
-    ) -> AsyncIterator[Dict[str, Any]]:
+    ) -> Iterator[Dict[str, Any]]:
         """
         Iterate through all calls matching the filter criteria.
         Automatically handles pagination.
@@ -220,7 +220,7 @@ class Calls:
             per_page=100  # Use maximum allowed per_page for efficiency
         )
 
-        async for item in self.client._paginate(
+        for item in self.client._paginate(
             method="GET",
             endpoint="/v2.1/calls",
             params=params.model_dump(exclude_none=True),

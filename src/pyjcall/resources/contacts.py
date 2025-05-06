@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional, AsyncIterator, Union
+from typing import Dict, Any, Optional, Iterator, Union
 from ..models.contacts import (
     ListContactsParams, 
     QueryContactsParams, 
@@ -15,27 +15,27 @@ class Contacts:
     def __init__(self, client):
         self.client = client
 
-    async def list(
+    def list(
         self,
         page: Optional[str] = "1",
         per_page: Optional[str] = "50"
     ) -> Dict[str, Any]:
         """List contacts with optional filtering parameters"""
-        params = ListContactsParams(
-            page=page,
-            per_page=per_page
-        )
+        params = {
+            "page": page,
+            "per_page": per_page
+        }
         
-        return await self.client._make_request(
-            method="POST",
-            endpoint="/v1/contacts/list",
-            json=params.model_dump(exclude_none=True)
+        return self.client._make_request(
+            method="GET",
+            endpoint="/v2.1/sales_dialer/contacts",
+            params=params
         )
 
-    async def iter_all(
+    def iter_all(
         self,
         max_items: Optional[int] = None
-    ) -> AsyncIterator[Dict[str, Any]]:
+    ) -> Iterator[Dict[str, Any]]:
         """
         Iterate through all contacts.
         Automatically handles pagination.
@@ -51,10 +51,10 @@ class Contacts:
             per_page="100"  # Use maximum allowed per_page for efficiency
         )
 
-        async for item in self.client._paginate(
-            method="POST",
-            endpoint="/v1/contacts/list",
-            json=params.model_dump(exclude_none=True),
+        for item in self.client._paginate(
+            method="GET",
+            endpoint="/v2.1/sales_dialer/contacts",
+            params=params.model_dump(exclude_none=True),
             page_key="page",
             items_key="data",
             max_items=max_items,
@@ -62,7 +62,7 @@ class Contacts:
         ):
             yield item
 
-    async def query(
+    def query(
         self,
         id: Optional[int] = None,
         firstname: Optional[str] = None,
@@ -95,25 +95,18 @@ class Contacts:
         Raises:
             ValueError: If no search parameters are provided
         """
-        params = QueryContactsParams(
-            id=id,
-            firstname=firstname,
-            lastname=lastname,
-            phone=phone,
-            email=email,
-            company=company,
-            notes=notes,
-            page=page,
-            per_page=per_page
+        # Create query parameters
+        query_params = {k: v for k, v in locals().items() if v is not None and k not in ['self', 'page', 'per_page']}
+        query_params['page'] = page
+        query_params['per_page'] = per_page
+        
+        return self.client._make_request(
+            method="GET",
+            endpoint="/v2.1/sales_dialer/contacts",
+            params=query_params
         )
 
-        return await self.client._make_request(
-            method="POST",
-            endpoint="/v1/contacts/query",
-            json=params.model_dump(exclude_none=True)
-        )
-
-    async def iter_query(
+    def iter_query(
         self,
         id: Optional[int] = None,
         firstname: Optional[str] = None,
@@ -123,7 +116,7 @@ class Contacts:
         company: Optional[str] = None,
         notes: Optional[str] = None,
         max_items: Optional[int] = None
-    ) -> AsyncIterator[Dict[str, Any]]:
+    ) -> Iterator[Dict[str, Any]]:
         """
         Iterate through all contacts matching the query parameters.
         Automatically handles pagination.
@@ -139,29 +132,21 @@ class Contacts:
         Raises:
             ValueError: If no search parameters are provided
         """
-        params = QueryContactsParams(
-            id=id,
-            firstname=firstname,
-            lastname=lastname,
-            phone=phone,
-            email=email,
-            company=company,
-            notes=notes,
-            per_page="100"  # Use maximum allowed per_page for efficiency
-        )
+        query_params = {k: v for k, v in locals().items() if v is not None and k != 'self'}
+        query_params['per_page'] = "100"  # Use maximum allowed per_page for efficiency
 
-        async for item in self.client._paginate(
-            method="POST",
-            endpoint="/v1/contacts/query",
-            json=params.model_dump(exclude_none=True),
+        for item in self.client._paginate(
+            method="GET",
+            endpoint="/v2.1/sales_dialer/contacts",
+            params=query_params,
             page_key="page",
             items_key="data",
             max_items=max_items,
-            start_page=1  # Specify v1 API starts at page 1
+            start_page=1  # Explicitly start at page 1
         ):
             yield item 
 
-    async def update(
+    def update(
         self,
         id: int,
         firstname: str,
@@ -210,13 +195,13 @@ class Contacts:
             other_phones=other_phones_model
         )
 
-        return await self.client._make_request(
+        return self.client._make_request(
             method="POST",
             endpoint="/v1/contacts/update",
             json=params.model_dump(exclude_none=True)
         )
 
-    async def create(
+    def create(
         self,
         firstname: str,
         phone: str,
@@ -257,14 +242,14 @@ class Contacts:
             agentid=agentid
         )
 
-        res = await self.client._make_request(
+        res = self.client._make_request(
             method="POST",
             endpoint="/v1/contacts/new",
             json=params.model_dump(exclude_none=True)
         ) 
         return res
 
-    async def delete(self, id: int) -> Dict[str, Any]:
+    def delete(self, id: int) -> Dict[str, Any]:
         """
         Delete a contact.
         
@@ -279,13 +264,13 @@ class Contacts:
         """
         params = DeleteContactParams(id=id)
 
-        return await self.client._make_request(
+        return self.client._make_request(
             method="POST",
             endpoint="/v1/contacts/delete",
             json=params.model_dump(exclude_none=True)
         )
 
-    async def action(
+    def action(
         self,
         number: str,
         type: Union[str, ContactActionType],
@@ -320,7 +305,7 @@ class Contacts:
             acrossteam=acrossteam
         )
 
-        return await self.client._make_request(
+        return self.client._make_request(
             method="POST",
             endpoint="/v1/contacts/action",
             json=params.model_dump(exclude_none=True)

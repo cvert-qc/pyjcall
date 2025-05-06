@@ -1,11 +1,11 @@
-from typing import Dict, Any, Optional, AsyncIterator
+from typing import Dict, Any, Optional, Iterator
 from ..models.phone_numbers import ListPhoneNumbersParams
 
 class PhoneNumbers:
     def __init__(self, client):
         self.client = client
 
-    async def list(
+    def list(
         self,
         justcall_line_name: Optional[str] = None,
         availability_setting: Optional[str] = None,
@@ -49,13 +49,13 @@ class PhoneNumbers:
             order=order
         )
 
-        return await self.client._make_request(
+        return self.client._make_request(
             method="GET",
             endpoint="/v2.1/phone-numbers",
             params=params.model_dump(exclude_none=True)
         )
 
-    async def iter_all(
+    def iter_all(
         self,
         justcall_line_name: Optional[str] = None,
         availability_setting: Optional[str] = None,
@@ -66,7 +66,7 @@ class PhoneNumbers:
         capabilities: Optional[str] = None,
         order: Optional[str] = None,
         max_items: Optional[int] = None
-    ) -> AsyncIterator[Dict[str, Any]]:
+    ) -> Iterator[Dict[str, Any]]:
         """
         Iterate through all phone numbers matching the filter criteria.
         Automatically handles pagination.
@@ -90,7 +90,7 @@ class PhoneNumbers:
             per_page=100  # Use maximum allowed per_page for efficiency
         )
 
-        async for item in self.client._paginate(
+        for item in self.client._paginate(
             method="GET",
             endpoint="/v2.1/phone-numbers",
             params=params.model_dump(exclude_none=True),

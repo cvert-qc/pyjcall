@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any, AsyncIterator, List
+from typing import Optional, Dict, Any, Iterator, List
 from ..models.campaign_contacts import (
     GetCustomFieldsParams,
     ListCampaignContactsParams,
@@ -10,7 +10,7 @@ class CampaignContacts:
     def __init__(self, client):
         self.client = client
 
-    async def get_custom_fields(self) -> Dict[str, Any]:
+    def get_custom_fields(self) -> Dict[str, Any]:
         """
         Get custom fields for campaign contacts.
         
@@ -19,13 +19,13 @@ class CampaignContacts:
         """
         params = GetCustomFieldsParams()
 
-        return await self.client._make_request(
+        return self.client._make_request(
             method="POST",
             endpoint="/v1/autodialer/contacts/customfields",
             json=params.model_dump(exclude_none=True)
         )
 
-    async def list(
+    def list(
         self,
         campaign_id: str,
         contact_status: Optional[str] = None,
@@ -57,48 +57,50 @@ class CampaignContacts:
             order=order
         )
 
-        return await self.client._make_request(
+        return self.client._make_request(
             method="GET",
             endpoint="/v2.1/sales_dialer/campaigns/contacts",
             params=params.model_dump(exclude_none=True)
         )
 
-    async def add(
+    def add(
         self,
         campaign_id: str,
-        phone: str,
+        contact_number: str,
         first_name: Optional[str] = None,
         last_name: Optional[str] = None,
-        custom_props: Optional[Dict[str, Any]] = None
+        email: Optional[str] = None,
+        custom_fields: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         Add a contact to a campaign.
         
         Args:
             campaign_id (str): Campaign ID to which the contact will be added
-            phone (str): Formatted phone number of the contact with country code
+            contact_number (str): Formatted phone number of the contact with country code
             first_name (str, optional): Contact's first name
             last_name (str, optional): Contact's last name
-            custom_props (Dict[str, Any], optional): Custom properties for the contact
+            email (str, optional): Contact's email
+            custom_fields (Dict[str, Any], optional): Custom fields for the contact
             
         Returns:
             Dict[str, Any]: Added contact details
         """
         params = AddCampaignContactParams(
             campaign_id=campaign_id,
-            phone=phone,
+            phone=contact_number,
             first_name=first_name,
             last_name=last_name,
-            custom_props=custom_props
+            custom_props=custom_fields
         )
 
-        return await self.client._make_request(
+        return self.client._make_request(
             method="POST",
-            endpoint="/v1/autodialer/campaigns/add",
+            endpoint="/v1/autodialer/contacts/add",
             json=params.model_dump(exclude_none=True)
         )
 
-    async def remove(
+    def remove(
         self,
         campaign_id: Optional[str] = None,
         phone: Optional[str] = None,
@@ -125,20 +127,20 @@ class CampaignContacts:
             all=all
         )
 
-        return await self.client._make_request(
+        return self.client._make_request(
             method="POST",
             endpoint="/v1/autodialer/contacts/remove",
             json=params.model_dump(exclude_none=True)
         )
 
-    async def iter_all(
+    def iter_all(
         self,
         campaign_id: str,
         contact_status: Optional[str] = None,
         progress_status: Optional[str] = None,
         order: Optional[str] = None,
         max_items: Optional[int] = None
-    ) -> AsyncIterator[Dict[str, Any]]:
+    ) -> Iterator[Dict[str, Any]]:
         """
         Iterate through all contacts in a campaign with pagination support using v2 API.
         
@@ -157,7 +159,7 @@ class CampaignContacts:
         per_page = 10  # Default for v2 API
         
         while True:
-            response = await self.list(
+            response = self.list(
                 campaign_id=campaign_id,
                 contact_status=contact_status,
                 progress_status=progress_status,

@@ -1,10 +1,10 @@
 """
 Retry mechanism for handling API rate limits and transient errors.
 """
-import asyncio
+import time
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Optional, TypeVar, Awaitable, Set
+from typing import Any, Callable, Dict, Optional, TypeVar, Set
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +75,7 @@ class RetryHandler:
         """
         return status_code in self.config.retry_codes and retry_count < self.config.max_retries
     
-    async def wait_before_retry(self, retry_count: int) -> None:
+    def wait_before_retry(self, retry_count: int) -> None:
         """Wait with exponential backoff before the next retry attempt.
         
         Args:
@@ -91,18 +91,18 @@ class RetryHandler:
         logger.info(f"Retry attempt {retry_count}/{self.config.max_retries}: "
                    f"Waiting {backoff_time:.2f} seconds before retrying...")
         
-        await asyncio.sleep(backoff_time)
+        time.sleep(backoff_time)
     
-    async def execute_with_retry(
+    def execute_with_retry(
         self,
-        func: Callable[..., Awaitable[T]],
+        func: Callable[..., T],
         *args: Any,
         **kwargs: Any
     ) -> T:
         """Execute a function with retry logic.
         
         Args:
-            func: Async function to execute
+            func: Function to execute
             *args: Positional arguments for the function
             **kwargs: Keyword arguments for the function
             
@@ -118,9 +118,9 @@ class RetryHandler:
         while retry_count <= self.config.max_retries:
             try:
                 if retry_count > 0:
-                    await self.wait_before_retry(retry_count)
+                    self.wait_before_retry(retry_count)
                 
-                return await func(*args, **kwargs)
+                return func(*args, **kwargs)
                 
             except Exception as e:
                 last_exception = e

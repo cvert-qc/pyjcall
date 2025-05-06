@@ -1,11 +1,11 @@
-from typing import Dict, Any, Optional, AsyncIterator
+from typing import Dict, Any, Optional, Iterator
 from ..models.users import ListUsersParams
 
 class Users:
     def __init__(self, client):
         self.client = client
 
-    async def list(
+    def list(
         self,
         available: Optional[bool] = None,
         group_id: Optional[int] = None,
@@ -37,13 +37,13 @@ class Users:
             order=order
         )
 
-        return await self.client._make_request(
+        return self.client._make_request(
             method="GET",
             endpoint="/v2.1/users",
             params=params.model_dump(exclude_none=True)
         )
 
-    async def get(self, user_id: int) -> Dict[str, Any]:
+    def get(self, user_id: int) -> Dict[str, Any]:
         """
         Get details of a specific user/agent by ID.
         
@@ -53,19 +53,19 @@ class Users:
         Returns:
             Dict[str, Any]: User details
         """
-        return await self.client._make_request(
+        return self.client._make_request(
             method="GET",
             endpoint=f"/v2.1/users/{user_id}"
         )
 
-    async def iter_all(
+    def iter_all(
         self,
         available: Optional[bool] = None,
         group_id: Optional[int] = None,
         role: Optional[str] = None,
         order: Optional[str] = "desc",
         max_items: Optional[int] = None
-    ) -> AsyncIterator[Dict[str, Any]]:
+    ) -> Iterator[Dict[str, Any]]:
         """
         Iterate through all users matching the filter criteria.
         Automatically handles pagination.
@@ -85,7 +85,7 @@ class Users:
             per_page=100  # Use maximum allowed per_page for efficiency
         )
 
-        async for item in self.client._paginate(
+        for item in self.client._paginate(
             method="GET",
             endpoint="/v2.1/users",
             params=params.model_dump(exclude_none=True),
