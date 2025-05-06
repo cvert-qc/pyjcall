@@ -21,13 +21,13 @@ from pyjcall.utils.exceptions import JustCallException
 # Load environment variables from .env file
 dotenv.load_dotenv()
 
-async def test_calls(client):
+def test_calls(client):
     """Test Calls API endpoints (read-only)"""
     print("\n=== CALLS API ===")
     
     # List calls
     print("\nListing calls...")
-    calls = await client.Calls.list(per_page=20)
+    calls = client.Calls.list(per_page="20")
     print(f"Retrieved {len(calls.get('data', []))} calls")
     
     # If we have calls, test other endpoints
@@ -37,12 +37,12 @@ async def test_calls(client):
         
         # Get call details
         print("\nGetting call details...")
-        call = await client.Calls.get(call_id=call_id)
+        call = client.Calls.get(call_id=call_id)
         print(f"Call direction: {call.get('direction')}")
         
         if call.get('direction') == 'Incoming':
             print("\nGetting call journey (only for incoming calls)...")
-            journey = await client.Calls.get_journey(call_id=call_id)
+            journey = client.Calls.get_journey(call_id=call_id)
             print(f"Journey retrieved with {len(journey)} steps")
         else:
             print("\nSkipping call journey (not an incoming call)")
@@ -50,7 +50,7 @@ async def test_calls(client):
         # Try to get voice agent data
         print("\nTrying to get voice agent data...")
         try:
-            voice_data = await client.Calls.get_voice_agent_data(call_id=call_id)
+            voice_data = client.Calls.get_voice_agent_data(call_id=call_id)
             print("Voice agent data retrieved successfully")
         except JustCallException as e:
             print(f"Could not get voice agent data: {e}")
@@ -58,20 +58,20 @@ async def test_calls(client):
         # Try to download recording
         print("\nTrying to download call recording...")
         try:
-            recording = await client.Calls.download_recording(call_id=call_id)
+            recording = client.Calls.download_recording(call_id=call_id)
             print(f"Recording downloaded: {len(recording)} bytes")
         except Exception as e:
             print(f"Could not download recording: {e}")
     else:
         print("No calls found to test with")
 
-async def test_messages(client):
+def test_messages(client):
     """Test Messages API endpoints"""
     print("\n=== MESSAGES API ===")
     
     # List messages
     print("\nListing messages...")
-    messages = await client.Messages.list(per_page=20)
+    messages = client.Messages.list(per_page="20")
     print(f"Retrieved {len(messages.get('data', []))} messages")
     
     # If we have messages, test other endpoints
@@ -81,11 +81,11 @@ async def test_messages(client):
         
         # Get message details
         print("\nGetting message details...")
-        message = await client.Messages.get(message_id=message_id)
+        message = client.Messages.get(message_id=message_id)
         print(f"Message body: {message.get('body', 'N/A')}")
         
         # Get a phone number to use for sending tests
-        numbers = await client.PhoneNumbers.list(capabilities="sms")
+        numbers = client.PhoneNumbers.list(capabilities="sms")
         if numbers.get('data'):
             print(numbers['data'][0])
             justcall_number = numbers['data'][0]['justcall_number']
@@ -94,7 +94,7 @@ async def test_messages(client):
             print("\nChecking for replies...")
             if message.get('contact_number'):
                 try:
-                    replies = await client.Messages.check_reply(
+                    replies = client.Messages.check_reply(
                         contact_number=message['contact_number'],
                         justcall_number=justcall_number
                     )
@@ -107,14 +107,14 @@ async def test_messages(client):
             print("\nSending messages example (skipped to avoid real SMS)")
             """
             # Send message example
-            response = await client.Messages.send(
+            response = client.Messages.send(
                 to="+1234567890",  # Replace with real number
                 from_number=justcall_number,
                 body="Test message from PyJCall SDK"
             )
             
             # Send new message example
-            response = await client.Messages.send_new(
+            response = client.Messages.send_new(
                 justcall_number=justcall_number,
                 contact_number="+1234567890",  # Replace with real number
                 body="Test message from PyJCall SDK"
@@ -125,13 +125,13 @@ async def test_messages(client):
     else:
         print("No messages found to test with")
 
-async def test_phone_numbers(client):
+def test_phone_numbers(client):
     """Test PhoneNumbers API endpoints"""
     print("\n=== PHONE NUMBERS API ===")
     
     # List phone numbers
     print("\nListing phone numbers...")
-    numbers = await client.PhoneNumbers.list(per_page=20)
+    numbers = client.PhoneNumbers.list(per_page="20")
     print(f"Retrieved {len(numbers.get('data', []))} phone numbers")
     
     # Show capabilities
@@ -142,13 +142,13 @@ async def test_phone_numbers(client):
     else:
         print("No phone numbers found")
 
-async def test_users(client):
+def test_users(client):
     """Test Users API endpoints"""
     print("\n=== USERS API ===")
     
     # List users
     print("\nListing users...")
-    users = await client.Users.list(per_page=20)
+    users = client.Users.list(per_page="20")
     print(f"Retrieved {len(users.get('data', []))} users")
     
     # If we have users, test other endpoints
@@ -158,32 +158,39 @@ async def test_users(client):
         
         # Get user details
         print("\nGetting user details...")
-        user = await client.Users.get(user_id=user_id)
+        user = client.Users.get(user_id=user_id)
         print(f"User name: {user.get('name', 'N/A')}")
         print(f"User email: {user.get('email', 'N/A')}")
     else:
         print("No users found")
 
-async def test_contacts(client):
+def test_contacts(client):
     """Test Contacts API endpoints (read-only)"""
     print("\n=== CONTACTS API ===")
     
     # List contacts
     print("\nListing contacts...")
-    contacts = await client.Contacts.list(page="1", per_page="20")
-    print(f"Retrieved {len(contacts.get('contacts', []))} contacts")
+    contacts = client.Contacts.list(page="1", per_page="20")
+    contacts_data = contacts.get('data', [])
+    print(f"Retrieved {len(contacts_data)} contacts")
+    
+    # Show contact details if available
+    if contacts_data:
+        print("\nContact details:")
+        for i, contact in enumerate(contacts_data[:3]):  # Show first 3
+            print(f"Contact {i+1}: ID={contact.get('id')}, Name={contact.get('first_name')} {contact.get('last_name')}, Phone={contact.get('phone')}")
     
     # Query contacts
     print("\nQuerying contacts...")
     try:
         # Example: search by first name
-        query_results = await client.Contacts.query(firstname="John")
-        print(f"Found {len(query_results.get('contacts', []))} contacts matching query")
+        query_results = client.Contacts.query(firstname="John")
+        print(f"Found {len(query_results.get('data', []))} contacts matching query")
         
         # Example: iterate through query results
         print("\nIterating through query results...")
         count = 0
-        async for contact in client.Contacts.iter_query(firstname="John", max_items=50):
+        for contact in client.Contacts.iter_query(firstname="John", max_items=2000):
             count += 1
             if count % 10 == 0:
                 print(f"Processed {count} matching contacts...")
@@ -195,14 +202,14 @@ async def test_contacts(client):
     # Test bulk iteration
     print("\nTesting bulk iteration of all contacts...")
     contact_count = 0
-    async for contact in client.Contacts.iter_all(max_items=100):
+    for contact in client.Contacts.iter_all(max_items=100):
         contact_count += 1
         if contact_count % 20 == 0:
             print(f"Processed {contact_count} contacts...")
     
     print(f"\nTotal contacts processed: {contact_count}")
 
-async def test_bulk_iterations(client):
+def test_bulk_iterations(client):
     """Test bulk iteration capabilities"""
     print("\n=== BULK ITERATIONS ===")
     
@@ -216,10 +223,10 @@ async def test_bulk_iterations(client):
     to_date = today
     
     call_count = 0
-    async for call in client.Calls.iter_all(
+    for call in client.Calls.iter_all(
         from_datetime=from_date,
         to_datetime=to_date,
-        max_items=1000
+        max_items=2000
     ):
         call_count += 1
         if call_count % 100 == 0:
@@ -229,13 +236,13 @@ async def test_bulk_iterations(client):
     # Test Messages iteration
     print("\nIterating through all messages from last week...")
     last_week = today - timedelta(days=7)
-    # Use datetime objects directly instead of string formatting
     from_date = last_week
     
     message_count = 0
-    async for message in client.Messages.iter_all(
+    for message in client.Messages.iter_all(
         from_datetime=from_date,
-        to_datetime=to_date
+        to_datetime=to_date,
+        max_items=2000
     ):
         message_count += 1
         if message_count % 50 == 0:
@@ -245,7 +252,7 @@ async def test_bulk_iterations(client):
     # Test Users iteration
     print("\nIterating through all users...")
     user_count = 0
-    async for user in client.Users.iter_all():
+    for user in client.Users.iter_all(max_items=2000):
         user_count += 1
         if user_count % 20 == 0:
             print(f"Processed {user_count} users...")
@@ -254,7 +261,7 @@ async def test_bulk_iterations(client):
     # Test Phone Numbers iteration
     print("\nIterating through all phone numbers...")
     number_count = 0
-    async for number in client.PhoneNumbers.iter_all():
+    for number in client.PhoneNumbers.iter_all(max_items=2000):
         number_count += 1
         if number_count % 20 == 0:
             print(f"Processed {number_count} phone numbers...")
@@ -263,7 +270,7 @@ async def test_bulk_iterations(client):
     # Test Contacts iteration (all contacts)
     print("\nIterating through all contacts...")
     contact_count = 0
-    async for contact in client.Contacts.iter_all():
+    for contact in client.Contacts.iter_all(max_items=2000):
         contact_count += 1
         if contact_count % 50 == 0:
             print(f"Processed {contact_count} contacts...")
@@ -272,9 +279,10 @@ async def test_bulk_iterations(client):
     # Test Contacts query iteration
     print("\nIterating through contacts matching query...")
     query_count = 0
-    async for contact in client.Contacts.iter_query(
+    for contact in client.Contacts.iter_query(
         firstname="John",
-        company="Example Corp"
+        company="Example Corp",
+        max_items=2000
     ):
         query_count += 1
         if query_count % 20 == 0:
@@ -293,7 +301,7 @@ async def test_bulk_iterations(client):
     # Test Campaigns iteration
     print("\nIterating through all campaigns...")
     campaign_count = 0
-    async for campaign in client.Campaigns.iter_all():
+    for campaign in client.Campaigns.iter_all(max_items=2000):
         campaign_count += 1
         if campaign_count % 10 == 0:
             print(f"Processed {campaign_count} campaigns...")
@@ -309,13 +317,13 @@ async def test_bulk_iterations(client):
     print(f"Matching contacts processed: {query_count}")
     print(f"Campaigns processed: {campaign_count}")
 
-async def test_campaigns(client):
+def test_campaigns(client):
     """Test Campaigns API endpoints (read-only)"""
     print("\n=== CAMPAIGNS API ===")
     
     # List campaigns
     print("\nListing campaigns...")
-    campaigns = await client.Campaigns.list(per_page="20")
+    campaigns = client.Campaigns.list(per_page="20")
     print(f"Retrieved {len(campaigns.get('data', []))} campaigns")
     
     # If we have campaigns, show some details
@@ -329,21 +337,21 @@ async def test_campaigns(client):
     # Test bulk iteration
     print("\nTesting bulk iteration of all campaigns...")
     campaign_count = 0
-    async for campaign in client.Campaigns.iter_all(max_items=100):
+    for campaign in client.Campaigns.iter_all(max_items=100):
         campaign_count += 1
         if campaign_count % 10 == 0:
             print(f"Processed {campaign_count} campaigns...")
     
     print(f"\nTotal campaigns processed: {campaign_count}")
 
-async def test_campaign_contacts(client):
+def test_campaign_contacts(client):
     """Test Campaign Contacts API endpoints (read-only)"""
     print("\n=== CAMPAIGN CONTACTS API ===")
     
     # Get custom fields
     print("\nGetting custom fields for campaign contacts...")
     try:
-        custom_fields = await client.CampaignContacts.get_custom_fields()
+        custom_fields = client.CampaignContacts.get_custom_fields()
         print(f"Retrieved {len(custom_fields.get('data', []))} custom fields")
         
         # Show custom fields details if available
@@ -358,14 +366,14 @@ async def test_campaign_contacts(client):
     
     # List campaign contacts (if we have campaigns)
     print("\nListing campaigns to find one with contacts...")
-    campaigns = await client.Campaigns.list()
+    campaigns = client.Campaigns.list()
     
     if campaigns.get('data'):
         campaign_id = campaigns['data'][0]['id']
         print(f"\nListing contacts for campaign ID: {campaign_id}")
         
         try:
-            contacts = await client.CampaignContacts.list(campaign_id=str(campaign_id))
+            contacts = client.CampaignContacts.list(campaign_id=str(campaign_id))
             print(f"Retrieved {len(contacts.get('data', []))} contacts")
             
             # Show contact details if available
@@ -377,9 +385,9 @@ async def test_campaign_contacts(client):
                 # Test bulk iteration
                 print("\nTesting bulk iteration of campaign contacts...")
                 contact_count = 0
-                async for contact in client.CampaignContacts.iter_all(
+                for contact in client.CampaignContacts.iter_all(
                     campaign_id=str(campaign_id),
-                    max_items=100
+                    max_items=2000
                 ):
                     contact_count += 1
                     if contact_count % 10 == 0:
@@ -393,13 +401,13 @@ async def test_campaign_contacts(client):
     else:
         print("No campaigns found to list contacts")
 
-async def test_campaign_calls(client):
-    """Test Campaign Calls API endpoints (read-only) using v2 API"""
-    print("\n=== CAMPAIGN CALLS API (v2) ===")
+def test_campaign_calls(client):
+    """Test Campaign Calls API endpoints (read-only)"""
+    print("\n=== CAMPAIGN CALLS API ===")
     
     # List campaign calls
     print("\nListing campaigns to find one for calls...")
-    campaigns = await client.Campaigns.list()
+    campaigns = client.Campaigns.list()
     
     if campaigns.get('data'):
         campaign_id = campaigns['data'][0]['id']
@@ -407,18 +415,17 @@ async def test_campaign_calls(client):
         
         try:
             # Get calls for a specific campaign
-            from datetime import datetime, timedelta
+            from datetime import datetime, timedelta, date
             today = datetime.now()
             one_month_ago = today - timedelta(days=30)
+            # Use date objects directly instead of string formatting
+            start_date = one_month_ago.date()
+            end_date = today.date()
             
-            # Use datetime objects for the v2 API
-            from_datetime = one_month_ago
-            to_datetime = today
-            
-            calls = await client.CampaignCalls.list(
+            calls = client.CampaignCalls.list(
                 campaign_id=str(campaign_id),
-                from_datetime=from_datetime,
-                to_datetime=to_datetime
+                from_datetime=start_date,
+                to_datetime=end_date
             )
             print(f"Retrieved {len(calls.get('data', []))} calls out of {calls.get('total', 0)} total")
             
@@ -428,28 +435,14 @@ async def test_campaign_calls(client):
                 for i, call in enumerate(calls['data'][:3]):  # Show first 3
                     print(f"Call {i+1}: ID={call.get('call_id')}, From={call.get('from')}, To={call.get('to')}, Duration={call.get('duration')}")
                 
-                # Test additional v2 API parameters
-                print("\nTesting v2 API parameters (call_type filter)...")
-                try:
-                    filtered_calls = await client.CampaignCalls.list(
-                        campaign_id=str(campaign_id),
-                        from_datetime=from_datetime,
-                        to_datetime=to_datetime,
-                        call_type="answered",
-                        per_page=20
-                    )
-                    print(f"Retrieved {len(filtered_calls.get('data', []))} answered calls")
-                except Exception as e:
-                    print(f"Error filtering calls: {e}")
-                
                 # Test bulk iteration
                 print("\nTesting bulk iteration of campaign calls...")
                 call_count = 0
-                async for call in client.CampaignCalls.iter_all(
+                for call in client.CampaignCalls.iter_all(
                     campaign_id=str(campaign_id),
-                    from_datetime=from_datetime,
-                    to_datetime=to_datetime,
-                    max_items=100
+                    from_datetime=start_date,
+                    to_datetime=end_date,
+                    max_items=2000
                 ):
                     call_count += 1
                     if call_count % 10 == 0:
@@ -466,27 +459,22 @@ async def test_campaign_calls(client):
     # List calls from all campaigns
     print("\nListing calls from all campaigns in the last 7 days...")
     try:
-        from datetime import datetime, timedelta
+        from datetime import datetime, timedelta, date
         today = datetime.now()
         one_week_ago = today - timedelta(days=7)
+        # Use date objects directly instead of string formatting
+        start_date = one_week_ago.date()
+        end_date = today.date()
         
-        # Use datetime objects for the v2 API
-        from_datetime = one_week_ago
-        to_datetime = today
-        
-        # Test AI data retrieval
-        all_calls = await client.CampaignCalls.list(
-            from_datetime=from_datetime,
-            to_datetime=to_datetime,
-            fetch_ai_data=True,  # New v2 API parameter
-            sort="id",           # New v2 API parameter
-            order="desc"         # New v2 API parameter format
+        all_calls = client.CampaignCalls.list(
+            from_datetime=start_date,
+            to_datetime=end_date
         )
         print(f"Retrieved {len(all_calls.get('data', []))} calls from all campaigns")
     except Exception as e:
         print(f"Error listing all campaign calls: {e}")
 
-async def main():
+def main():
     """Main function to run all examples"""
     # Get API credentials from environment
     api_key = os.getenv("JUSTCALL_API_KEY")
@@ -501,19 +489,19 @@ async def main():
     print("NOTE: This script performs READ-ONLY operations to avoid modifying production data.")
     
     # Create client
-    async with JustCallClient(api_key=api_key, api_secret=api_secret) as client:
+    with JustCallClient(api_key=api_key, api_secret=api_secret) as client:
         # Test all API endpoints
-        await test_calls(client)
-        await test_messages(client)
-        await test_phone_numbers(client)
-        await test_users(client)
-        await test_contacts(client)
-        await test_campaigns(client)
-        await test_campaign_contacts(client)
-        await test_campaign_calls(client)
-        await test_bulk_iterations(client)
+        test_calls(client)
+        test_messages(client)
+        test_phone_numbers(client)
+        test_users(client)
+        test_contacts(client)
+        test_campaigns(client)
+        test_campaign_contacts(client)
+        test_campaign_calls(client)
+        test_bulk_iterations(client)
     
     print("\nExample script completed!")
 
 if __name__ == "__main__":
-    asyncio.run(main()) 
+    main()

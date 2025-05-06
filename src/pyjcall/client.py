@@ -4,10 +4,11 @@ import time
 import threading
 import logging
 from datetime import date, datetime
+from limits import RateLimitItemPerSecond
+from limits.storage import MemoryStorage
+from limits.strategies import MovingWindowRateLimiter
 from .resources.calls import Calls
 from .utils.exceptions import JustCallException
-from .utils.rate_limiter import RateLimiter, RateLimitStrategy, RateLimitConfig
-from .utils.retry import RetryHandler, RetryConfig
 from .utils.datetime import to_api_date, to_api_datetime
 from .resources.messages import Messages
 from .resources.phone_numbers import PhoneNumbers
@@ -19,54 +20,29 @@ from .resources.campaign_calls import CampaignCalls
 
 logger = logging.getLogger(__name__)
 
-# Constants for rate limiting and retry configuration
-DEFAULT_RATE = 1.0  # 1 request per second (3600 per hour)
-DEFAULT_MAX_TOKENS = 60  # Match the burst limit of 60 requests
-DEFAULT_WINDOW_SIZE = 60.0  # 60-second window for window-based strategies
-DEFAULT_BACKOFF_FACTOR = 1.5  # Exponential backoff multiplier
-DEFAULT_MAX_RETRIES = 5  # Maximum number of retries
-DEFAULT_RETRY_DELAY = 2.0  # Initial retry delay in seconds
+# Rate limiting constants
+DEFAULT_RATE_LIMIT = 60  # requests per minute
+RATE_LIMIT_NAMESPACE = "justcall_api"
 
 class JustCallClient:
-    def __init__(self, api_key: str, api_secret: str):
+    def __init__(self, api_key: str, api_secret: str, rate_limit: int = DEFAULT_RATE_LIMIT):
         """Initialize the JustCall API client.
         
         Args:
             api_key (str): Your JustCall API key
             api_secret (str): Your JustCall API secret
+            rate_limit (int, optional): Maximum number of requests per minute. Defaults to 60.
         """
         self.api_key = api_key
         self.api_secret = api_secret
         self.base_url = "https://api.justcall.io"
         self.session = None
         
-        # Initialize rate limiter with settings matching JustCall API limits
-        # JustCall API has a dual rate limiting system:
-        # 1. Burst limit: 60 requests in a short period
-        # 2. General limit: 3600 requests per hour (1 per second)
-        self.rate_limiter = RateLimiter(
-            rate=DEFAULT_RATE,
-            max_tokens=DEFAULT_MAX_TOKENS,
-            strategy=RateLimitStrategy.TOKEN_BUCKET,
-            window_size=DEFAULT_WINDOW_SIZE,
-        )
-        
-        # Initialize retry handler for handling rate limit errors and transient failures
-        self.retry_handler = RetryHandler(
-            max_retries=DEFAULT_MAX_RETRIES,
-            retry_delay=DEFAULT_RETRY_DELAY,
-            backoff_factor=DEFAULT_BACKOFF_FACTOR
-        )
-        
-        # Track API rate limit info
-        self.rate_limit_info = {
-            "burst_limit": DEFAULT_MAX_TOKENS,
-            "burst_remaining": DEFAULT_MAX_TOKENS,
-            "burst_reset": 0,
-            "limit": 3600,
-            "remaining": 3600,
-            "reset": 0
-        }
+        # Initialize rate limiter with moving window strategy
+        self.rate_limit = rate_limit
+        self.storage = MemoryStorage()
+        self.rate_limiter = MovingWindowRateLimiter(self.storage)
+        self.rate = RateLimitItemPerSecond(rate_limit, 60)
         
         # Initialize resources
         self._calls = Calls(self)
@@ -78,7 +54,7 @@ class JustCallClient:
         self._campaign_contacts = CampaignContacts(self)
         self._campaign_calls = CampaignCalls(self)
         
-        logger.info(f"Initialized JustCallClient with rate limiting and retry mechanisms")
+        logger.info(f"Initialized JustCallClient with rate limit of {rate_limit} requests per minute")
 
     def __enter__(self):
         """Create requests session when entering context manager."""
@@ -117,101 +93,82 @@ class JustCallClient:
             Union[Dict[str, Any], bytes]: API response
             
         Raises:
-            JustCallException: If the API request fails after all retries are exhausted
+            JustCallException: If the API request fails
         """
-        # Define the actual request function to be used with retry mechanism
-        def _do_request() -> Union[Dict[str, Any], bytes]:
-            if not self.session:
-                self.session = requests.Session()
-                self.session.headers.update({
-                    "Authorization": f"{self.api_key}:{self.api_secret}",
-                    "Accept": "application/json",
-                    "Content-Type": "application/json"
-                })
+        if not self.session:
+            self.session = requests.Session()
+            self.session.headers.update({
+                "Authorization": f"{self.api_key}:{self.api_secret}",
+                "Accept": "application/json",
+                "Content-Type": "application/json"
+            })
 
-            # Convert parameter values to appropriate string formats
-            request_params = self._prepare_request_params(params) if params else None
-
-            # Use the endpoint for rate limiting
-            self.rate_limiter.acquire(endpoint)
-            
-            try:
-                url = f"{self.base_url}{endpoint}"
-                logger.debug(f"Making {method} request to {url}")
-                
-                response = self.session.request(method, url, params=request_params, json=json)
-                
-                # Always update rate limit info from headers if available
-                self._update_rate_limits_from_headers(response.headers)
-                
-                if response.status_code >= 400:
-                    # Try to parse error response as JSON
-                    try:
-                        error_data = response.json()
-                        error_message = error_data.get('message', 'Unknown error')
-                    except Exception:
-                        # If JSON parsing fails, use the text or status
-                        error_message = response.text or f"HTTP {response.status_code}"
-                    
-                    # Check if it's a rate limit error
-                    if 'rate limit' in error_message.lower() or response.status_code == 429:
-                        # Extract and log rate limit headers
-                        rate_limit_headers = {
-                            k: v for k, v in response.headers.items() 
-                            if 'rate' in k.lower() or 'limit' in k.lower() or 'remaining' in k.lower()
-                        }
-                        
-                        # Log headers to help with debugging
-                        headers_str = '\n'.join([f"{k}: {v}" for k, v in rate_limit_headers.items()])
-                        logger.warning(f"Rate limit exceeded. Headers:\n{headers_str}")
-                        
-                        # Adjust rate limiter based on headers
-                        self._adjust_rate_limiter_from_headers(rate_limit_headers)
-                        
-                        # Include headers in the exception message
-                        error_message = f"{error_message} Headers: {rate_limit_headers}"
-                    
-                    exception = JustCallException(
-                        status_code=response.status_code,
-                        message=f"API Error: {error_message}"
-                    )
-                    
-                    # Add the response headers to the exception for retry logic
-                    exception.headers = dict(response.headers)
-                    raise exception
-                
-                # Mark successful request in the rate limiter
-                if hasattr(self, 'rate_limiter'):
-                    self.rate_limiter.mark_request_success()
-                    
-                if expect_json:
-                    try:
-                        return response.json()
-                    except ValueError:
-                        # Handle case where response is not JSON despite expect_json=True
-                        content = response.content
-                        logger.warning(f"Expected JSON response but got non-JSON content: {content[:100]}...")
-                        raise JustCallException(
-                            status_code=response.status_code,
-                            message="Invalid JSON response from API"
-                        )
-                else:
-                    return response.content
-                
-            except requests.RequestException as e:
-                logger.error(f"HTTP client error: {str(e)}")
-                raise JustCallException(
-                    status_code=500,
-                    message=f"Request failed: {str(e)}"
-                )
+        # Convert parameter values to appropriate string formats
+        request_params = self._prepare_request_params(params) if params else None
         
-        # Use the retry handler to execute the request with retry logic
         try:
-            # Pass the rate_limiter to the retry handler so it can update from headers
-            return self.retry_handler.execute_with_retry(_do_request, rate_limiter=self.rate_limiter)
-        except JustCallException as e:
-            # Re-raise JustCallException directly
-            raise
+            url = f"{self.base_url}{endpoint}"
+            logger.debug(f"Making {method} request to {url}")
+            
+            # Apply rate limiting
+            if not self.rate_limiter.test(self.rate, RATE_LIMIT_NAMESPACE, "api"):
+                # If we've hit the rate limit, calculate sleep time
+                # Wait for a short time before retrying
+                sleep_time = 5.0  # Default to 1 second
+                logger.warning(f"Rate limit reached for justcall api, sleeping for {sleep_time:.2f} seconds")
+
+                count = 0
+                while not self.rate_limiter.test(self.rate, RATE_LIMIT_NAMESPACE, "api") and count < 120:
+                    time.sleep(1)
+                    count += 1
+                
+                # Try again after waiting
+                if not self.rate_limiter.test(self.rate, RATE_LIMIT_NAMESPACE, "api"):
+                    raise JustCallException(
+                        status_code=429,
+                        message="Rate limit exceeded and could not recover"
+                    )
+            
+            # If we passed the test, actually consume the quota
+            self.rate_limiter.hit(self.rate, RATE_LIMIT_NAMESPACE, "api")
+            
+            response = self.session.request(method, url, params=request_params, json=json)
+            
+            if response.status_code >= 400:
+                # Try to parse error response as JSON
+                try:
+                    error_data = response.json()
+                    error_message = error_data.get('message', 'Unknown error')
+                except Exception:
+                    # If JSON parsing fails, use the text or status
+                    error_message = response.text or f"HTTP {response.status_code}"
+                
+                exception = JustCallException(
+                    status_code=response.status_code,
+                    message=f"API Error: {error_message}"
+                )
+                raise exception
+                
+            if expect_json:
+                try:
+                    return response.json()
+                except ValueError:
+                    # Handle case where response is not JSON despite expect_json=True
+                    content = response.content
+                    logger.warning(f"Expected JSON response but got non-JSON content: {content[:100]}...")
+                    raise JustCallException(
+                        status_code=response.status_code,
+                        message="Invalid JSON response from API"
+                    )
+            else:
+                return response.content
+            
+        except requests.RequestException as e:
+            logger.error(f"HTTP client error: {str(e)}")
+            raise JustCallException(
+                status_code=500,
+                message=f"Request failed: {str(e)}"
+            )
         except Exception as e:
             # Wrap other exceptions in JustCallException
             logger.error(f"Unexpected error during API request: {str(e)}")
@@ -320,68 +277,7 @@ class JustCallClient:
     def CampaignCalls(self) -> CampaignCalls:
         return self._campaign_calls
         
-    def _update_rate_limits_from_headers(self, headers: Dict[str, str]) -> None:
-        """Update internal rate limit tracking based on response headers.
-        
-        Args:
-            headers: Response headers from API call
-        """
-        # Extract rate limit headers
-        try:
-            # Burst limits
-            if 'x-rate-limit-burst-limit' in headers:
-                self.rate_limit_info['burst_limit'] = int(headers['x-rate-limit-burst-limit'])
-            if 'x-rate-limit-burst-remaining' in headers:
-                self.rate_limit_info['burst_remaining'] = int(headers['x-rate-limit-burst-remaining'])
-            if 'x-rate-limit-burst-reset' in headers:
-                self.rate_limit_info['burst_reset'] = int(headers['x-rate-limit-burst-reset'])
-                
-            # General limits
-            if 'x-rate-limit-limit' in headers:
-                self.rate_limit_info['limit'] = int(headers['x-rate-limit-limit'])
-            if 'x-rate-limit-remaining' in headers:
-                self.rate_limit_info['remaining'] = int(headers['x-rate-limit-remaining'])
-            if 'x-rate-limit-reset' in headers:
-                self.rate_limit_info['reset'] = int(headers['x-rate-limit-reset'])
-                
-            # Log rate limit information at debug level
-            logger.debug(f"Rate limit info updated: burst_remaining={self.rate_limit_info['burst_remaining']}, "
-                         f"remaining={self.rate_limit_info['remaining']}")
-        except (ValueError, KeyError) as e:
-            logger.warning(f"Error parsing rate limit headers: {e}")
-    
-    def _adjust_rate_limiter_from_headers(self, headers: Dict[str, str]) -> None:
-        """Adjust rate limiter settings based on rate limit headers.
-        
-        Args:
-            headers: Rate limit headers from API response
-        """
-        # Let the rate limiter handle the adaptive rate limiting directly
-        # This is more efficient and ensures consistent behavior
-        self.rate_limiter.update_from_headers(headers)
-        
-        # Update retry handler configuration based on burst reset time
-        try:
-            if 'x-rate-limit-burst-remaining' in headers and 'x-rate-limit-burst-reset' in headers:
-                burst_remaining = int(headers['x-rate-limit-burst-remaining'])
-                burst_reset = int(headers.get('x-rate-limit-burst-reset', 60))
-                
-                # Only update retry configuration if we're hitting limits
-                if burst_remaining == 0:
-                    # Update retry handler configuration to be more aggressive with buffer
-                    buffer_factor = 1.5  # Add 50% buffer to wait times
-                    new_retry_config = RetryConfig(
-                        max_retries=self.retry_handler.config.max_retries,
-                        retry_delay=max(self.retry_handler.config.retry_delay, burst_reset * buffer_factor),
-                        backoff_factor=2.0,  # More aggressive backoff
-                        retry_codes=self.retry_handler.config.retry_codes
-                    )
-                    self.retry_handler.update_config(new_retry_config)
-                    logger.info(f"Retry configuration updated: max_retries={new_retry_config.max_retries}, "
-                               f"retry_delay={new_retry_config.retry_delay}s, backoff_factor={new_retry_config.backoff_factor}")
-        except Exception as e:
-            logger.error(f"Error adjusting retry configuration: {e}")
-            # Don't let retry configuration adjustment failures break the client
+
     
     def _prepare_request_params(self, params: Dict) -> Dict:
         """Convert parameter values to appropriate string formats for API requests.
